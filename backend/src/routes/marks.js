@@ -41,10 +41,79 @@ router.get('/my', authenticate, authorize('student'), (req, res) => {
   res.json({ success: true, data });
 });
 
+router.get('/faculty', authenticate, authorize('faculty', 'admin'), (req, res) => {
+  const courses = db.prepare(`
+    SELECT c.*, u.name AS instructor_name
+    FROM courses c
+    LEFT JOIN users u ON u.id = c.instructor
+    WHERE (? = 'admin' OR c.instructor = ?)
+    ORDER BY c.code
+  `).all(req.user.role, req.user.id);
+
+  const data = courses.map(course => {
+    const assessments = db.prepare(`
+      SELECT id, type, total_marks, weightage, due_date, status
+      FROM assessments
+      WHERE course_id = ?
+      ORDER BY due_date, type
+    `).all(course.id);
+
+    const students = db.prepare(`
+      SELECT u.id, u.username, u.name
+      FROM registrations r
+      JOIN users u ON u.id = r.student_id
+      WHERE r.course_id = ? AND r.status != 'rejected'
+      ORDER BY u.username
+    `).all(course.id);
+
+    const marks = db.prepare(`
+      SELECT m.assessment_id, m.student_id, m.obtained
+      FROM marks m
+      JOIN assessments a ON a.id = m.assessment_id
+      WHERE a.course_id = ?
+    `).all(course.id);
+
+    const byKey = Object.fromEntries(marks.map(m => [`${m.assessment_id}:${m.student_id}`, m.obtained]));
+
+    return {
+      courseId: course.id,
+      courseCode: course.code,
+      courseTitle: course.title,
+      section: course.section,
+      instructorName: course.instructor_name,
+      assessments: assessments.map(a => ({
+        id: a.id,
+        type: a.type,
+        totalMarks: a.total_marks,
+        weightage: a.weightage,
+        dueDate: a.due_date,
+        status: a.status,
+      })),
+      students: students.map(s => ({
+        id: s.id,
+        username: s.username,
+        name: s.name,
+        marks: Object.fromEntries(assessments.map(a => [a.id, byKey[`${a.id}:${s.id}`] ?? ''])),
+      })),
+    };
+  });
+
+  res.json({ success: true, data });
+});
+
 router.post('/', authenticate, authorize('faculty', 'admin'), (req, res) => {
   const { assessmentId, studentId, obtained } = req.body;
+  const assessment = db.prepare('SELECT * FROM assessments WHERE id = ?').get(assessmentId);
+  if (!assessment) return res.status(404).json({ success: false, message: 'Assessment not found' });
+  const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(assessment.course_id);
+  if (req.user.role !== 'admin' && course?.instructor !== req.user.id) {
+    return res.status(403).json({ success: false, message: 'Access Denied' });
+  }
+  if (obtained !== '' && obtained !== null && (Number(obtained) < 0 || Number(obtained) > assessment.total_marks)) {
+    return res.status(400).json({ success: false, message: `Marks must be between 0 and ${assessment.total_marks}` });
+  }
   const id = `mk${Date.now()}`;
-  db.prepare('INSERT OR REPLACE INTO marks (id, assessment_id, student_id, obtained) VALUES (?,?,?,?)').run(id, assessmentId, studentId, obtained);
+  db.prepare('INSERT OR REPLACE INTO marks (id, assessment_id, student_id, obtained) VALUES (?,?,?,?)').run(id, assessmentId, studentId, obtained === '' ? null : Number(obtained));
   res.json({ success: true, message: 'Mark saved' });
 });
 

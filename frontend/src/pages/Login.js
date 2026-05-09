@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { api } from '../api';
 
 export default function Login() {
   const { login } = useAuth();
   const [form, setForm]       = useState({ username: '', password: '' });
   const [error, setError]     = useState('');
-  const [info, setInfo]       = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -15,15 +13,6 @@ export default function Login() {
     try { await login(form.username, form.password); }
     catch (err) { setError(err.message); }
     finally { setLoading(false); }
-  };
-
-  const requestReset = async () => {
-    const username = prompt('Enter your student roll number:');
-    if (!username) return;
-    try {
-      const r = await api.requestPasswordReset(username);
-      setInfo(r.data?.token ? `Reset token: ${r.data.token}` : r.message);
-    } catch (e) { setError(e.message); }
   };
 
   return (
@@ -137,7 +126,6 @@ export default function Login() {
             <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 20, fontWeight: 700, marginBottom: 24, color: '#ede8f8' }}>Sign In</h2>
 
             {error && <div className="alert alert-error">{error}</div>}
-            {info && <div className="alert alert-info">{info}</div>}
 
             <form onSubmit={handleSubmit}>
               <div style={{ marginBottom: 18 }}>
@@ -166,7 +154,7 @@ export default function Login() {
             </form>
 
             <p style={{ fontSize: 11.5, color: '#4e4470', marginTop: 20, textAlign: 'center' }}>
-              <button className="btn btn-secondary btn-sm" onClick={requestReset}>Student password reset</button>
+              For password assistance contact your Academic Officer
             </p>
           </div>
         </div>

@@ -34,8 +34,6 @@ export const api = {
   login:  (username, password) => req('POST', '/auth/login', { username, password }),
   me:     ()                   => req('GET',  '/auth/me'),
   logout: ()                   => req('POST', '/auth/logout'),
-  requestPasswordReset: (username) => req('POST', '/auth/password-reset/request', { username }),
-  confirmPasswordReset: (token, password) => req('POST', '/auth/password-reset/confirm', { token, password }),
 
   // Courses
   getCourses:     ()         => req('GET',    '/courses'),
@@ -62,6 +60,7 @@ export const api = {
 
   // Marks
   getMyMarks: () => req('GET',  '/marks/my'),
+  getFacultyMarks: () => req('GET', '/marks/faculty'),
   saveMark:   (d) => req('POST', '/marks', d),
 
   // Fee
