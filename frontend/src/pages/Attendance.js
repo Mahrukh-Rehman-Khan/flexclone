@@ -288,7 +288,7 @@ function StudentAttendance() {
             value={qrToken} onChange={e => setQrToken(e.target.value.trim())}
             style={{ marginBottom: 8, fontFamily: 'monospace', fontSize: 12 }} />
           <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginBottom: 12 }}>
-            ⚠️ Make sure you are logged in as a <strong style={{color:'var(--text-muted)'}}>student</strong> account and connected to the same WiFi as your faculty.
+            ⚠️ Make sure you are logged in as a <strong style={{color:'var(--text-muted)'}}>student</strong> account and are in the same class.
           </div>
 
           {qrToken && <QrMarkButton key={qrToken} token={qrToken} onDone={() => {}} />}
