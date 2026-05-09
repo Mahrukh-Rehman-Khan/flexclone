@@ -70,12 +70,12 @@ export default function Dashboard() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {myCourses.map(c => (
                   <div key={c.id} style={{ padding: 12, background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 13.5 }}>{c.code} — {c.title}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.code} — {c.title}</div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{c.schedule} · {c.room}</div>
                       </div>
-                      <span className={`badge badge-${c.registrationStatus === 'locked' ? 'green' : 'yellow'}`}>{c.registrationStatus}</span>
+                      <span className={`badge badge-${c.registrationStatus === 'locked' ? 'green' : 'yellow'}`} style={{ flexShrink: 0 }}>{c.registrationStatus}</span>
                     </div>
                   </div>
                 ))}

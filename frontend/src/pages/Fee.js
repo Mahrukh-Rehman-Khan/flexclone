@@ -43,7 +43,7 @@ export default function Fee() {
               <h3 className="card-title">Challan — {c.semester}</h3>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>Due: {c.dueDate}{c.studentName ? ` · ${c.studentName}` : ''}</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               {statusBadge(c.status)}
               {(user.role === 'finance' || user.role === 'admin') && c.status !== 'paid' && (
                 <button className="btn btn-primary btn-sm" onClick={() => markPaid(c.id)}>Mark Paid</button>
@@ -51,6 +51,7 @@ export default function Fee() {
             </div>
           </div>
 
+          {/* Stack on mobile */}
           <div className="grid-2">
             <div>
               {c.items.map((item, i) => (

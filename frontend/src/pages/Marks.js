@@ -26,7 +26,7 @@ export default function Marks() {
 
       {overallGPA && (
         <div className="card" style={{ marginBottom: 20, background: 'linear-gradient(135deg,var(--navy-light),var(--surface))' }}>
-          <div style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
             <div>
               <div className="stat-label">Semester GPA</div>
               <div style={{ fontSize: 40, fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent)' }}>{overallGPA}</div>
@@ -74,7 +74,7 @@ export default function Marks() {
 
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Assessment</th><th>Total</th><th>Obtained</th><th>Percentage</th><th>Weightage</th><th>Status</th></tr></thead>
+              <thead><tr><th>Assessment</th><th>Total</th><th>Obtained</th><th>%</th><th>Wt%</th><th>Status</th></tr></thead>
               <tbody>
                 {course.assessments.map(a => (
                   <tr key={a.id}>
