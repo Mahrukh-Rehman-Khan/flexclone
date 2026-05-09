@@ -31,6 +31,162 @@ function StatusPill({ status }) {
   );
 }
 
+function QrCameraScanner({ onToken, onClose }) {
+  const videoRef    = useRef(null);
+  const canvasRef   = useRef(null);
+  const streamRef   = useRef(null);
+  const rafRef      = useRef(null);
+  const [status, setStatus] = useState('starting'); // starting | scanning | error
+  const [errMsg, setErrMsg] = useState('');
+  const [ZXing, setZXing]   = useState(null);
+ 
+  // Load ZXing
+  useEffect(() => {
+    if (window.ZXing) { setZXing(window.ZXing); return; }
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js';
+    s.onload = () => setZXing(window.ZXing);
+    s.onerror = () => { setStatus('error'); setErrMsg('Failed to load QR library.'); };
+    document.head.appendChild(s);
+  }, []);
+ 
+  // Start camera once ZXing is ready
+  useEffect(() => {
+    if (!ZXing) return;
+    let cancelled = false;
+ 
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        });
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+          setStatus('scanning');
+          scan();
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setStatus('error');
+          setErrMsg(e.name === 'NotAllowedError'
+            ? 'Camera access denied. Please allow camera in your browser settings.'
+            : 'Could not access camera. Try uploading a screenshot instead.');
+        }
+      }
+    }
+ 
+    function scan() {
+      if (cancelled || !videoRef.current || !canvasRef.current || !ZXing) return;
+      const video = videoRef.current;
+      if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+        rafRef.current = requestAnimationFrame(scan); return;
+      }
+ 
+      const canvas = canvasRef.current;
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+ 
+      try {
+        const hints = new Map();
+        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.QR_CODE]);
+        hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+        const reader = new ZXing.MultiFormatReader();
+        reader.setHints(hints);
+        const lum = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+        const bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
+        const result = reader.decode(bmp);
+        const text = result.getText();
+        const token = text.startsWith('FLEX-ATT:') ? text.slice(9) : text;
+        stop();
+        onToken(token);
+        return;
+      } catch {}
+ 
+      rafRef.current = requestAnimationFrame(scan);
+    }
+ 
+    startCamera();
+    return () => { cancelled = true; stop(); };
+  }, [ZXing]);
+ 
+  function stop() {
+    cancelAnimationFrame(rafRef.current);
+    streamRef.current?.getTracks().forEach(t => t.stop());
+  }
+ 
+  return (
+    <div style={{
+      position: 'relative', borderRadius: 12, overflow: 'hidden',
+      background: '#000', marginBottom: 12,
+      border: '2px solid var(--accent)',
+    }}>
+      {/* Close button */}
+      <button onClick={() => { stop(); onClose(); }} style={{
+        position: 'absolute', top: 10, right: 10, zIndex: 10,
+        background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.2)',
+        borderRadius: 6, color: 'white', padding: '4px 10px', cursor: 'pointer', fontSize: 13,
+      }}>✕ Close</button>
+ 
+      {/* Video feed */}
+      <video ref={videoRef} muted playsInline style={{
+        width: '100%', maxHeight: 280, objectFit: 'cover', display: 'block',
+      }} />
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
+ 
+      {/* Scanning overlay */}
+      {status === 'scanning' && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
+        }}>
+          <div style={{
+            width: 180, height: 180, border: '2px solid var(--accent)',
+            borderRadius: 12, boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
+          }}>
+            {/* Corner marks */}
+            {[['top','left'],['top','right'],['bottom','left'],['bottom','right']].map(([v,h]) => (
+              <div key={v+h} style={{
+                position: 'absolute', [v]: -2, [h]: -2,
+                width: 20, height: 20,
+                borderTop: v === 'top' ? '3px solid var(--accent)' : 'none',
+                borderBottom: v === 'bottom' ? '3px solid var(--accent)' : 'none',
+                borderLeft: h === 'left' ? '3px solid var(--accent)' : 'none',
+                borderRight: h === 'right' ? '3px solid var(--accent)' : 'none',
+              }} />
+            ))}
+          </div>
+        </div>
+      )}
+ 
+      {/* Status messages */}
+      {status === 'starting' && (
+        <div style={{
+          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.8)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'var(--text-muted)', fontSize: 13,
+        }}>Starting camera…</div>
+      )}
+      {status === 'error' && (
+        <div style={{
+          padding: 20, color: 'var(--red)', fontSize: 13, textAlign: 'center', background: '#0a0714',
+        }}>{errMsg}</div>
+      )}
+      {status === 'scanning' && (
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          background: 'rgba(0,0,0,0.6)', color: 'var(--text-muted)',
+          fontSize: 12, textAlign: 'center', padding: '6px',
+        }}>Point your camera at the QR code</div>
+      )}
+    </div>
+  );
+}
+
 // ─── QR IMAGE DECODER (student uploads screenshot) ───────────────────────────
 
 function QrImageUpload({ onToken }) {
@@ -242,6 +398,7 @@ function StudentAttendance() {
   const [loading, setLoading] = useState(true);
   const [qrMode, setQrMode]   = useState(false);
   const [qrToken, setQrToken] = useState('');
+  const [scanTab, setScanTab] = useState('camera');
 
   useEffect(() => {
     api.getMyAttendance()
@@ -270,30 +427,50 @@ function StudentAttendance() {
 
       {/* ── QR MODE ── */}
       {qrMode && (
-        <div className="card" style={{ maxWidth: 460, marginBottom: 20 }}>
-          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Mark Attendance via QR</div>
-          <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 16 }}>
-            Upload a screenshot of the QR code shown by your faculty, or paste the token below.
-          </p>
-
-          <QrImageUpload onToken={t => setQrToken(t)} />
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0' }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>or enter token manually</span>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-          </div>
-
-          <input className="form-input" placeholder="Paste full token here (e.g. 39f745650f7c38808f0e2a1b…)"
-            value={qrToken} onChange={e => setQrToken(e.target.value.trim())}
-            style={{ marginBottom: 8, fontFamily: 'monospace', fontSize: 12 }} />
-          <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginBottom: 12 }}>
-            ⚠️ Make sure you are logged in as a <strong style={{color:'var(--text-muted)'}}>student</strong> account and are in the same class.
-          </div>
-
-          {qrToken && <QrMarkButton key={qrToken} token={qrToken} onDone={() => {}} />}
+  <div className="card" style={{ maxWidth: 480, marginBottom: 20 }}>
+    <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Mark Attendance via QR</div>
+ 
+    {/* Tab switcher */}
+    <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: 'var(--surface2)', borderRadius: 8, padding: 4 }}>
+      {[['camera', '📷 Scan with Camera'], ['upload', '🖼️ Upload Screenshot'], ['manual', '⌨️ Enter Token']].map(([id, label]) => (
+        <button key={id} className="btn btn-sm" onClick={() => setScanTab(id)} style={{
+          flex: 1, justifyContent: 'center',
+          background: scanTab === id ? 'var(--accent)' : 'transparent',
+          color: scanTab === id ? 'white' : 'var(--text-muted)',
+          fontSize: 11,
+        }}>{label}</button>
+      ))}
+    </div>
+ 
+    {/* Camera tab */}
+    {scanTab === 'camera' && (
+      <QrCameraScanner
+        onToken={t => { setQrToken(t); setScanTab('manual'); }}
+        onClose={() => setScanTab('upload')}
+      />
+    )}
+ 
+    {/* Upload tab */}
+    {scanTab === 'upload' && (
+      <QrImageUpload onToken={t => setQrToken(t)} />
+    )}
+ 
+    {/* Manual / result tab */}
+    {scanTab === 'manual' && (
+      <>
+        <input className="form-input"
+          placeholder="Paste or scan token here…"
+          value={qrToken} onChange={e => setQrToken(e.target.value.trim())}
+          style={{ marginBottom: 8, fontFamily: 'monospace', fontSize: 12 }} />
+        <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginBottom: 12 }}>
+          ⚠️ Make sure location access is enabled on your device.
         </div>
-      )}
+      </>
+    )}
+ 
+    {qrToken && <QrMarkButton key={qrToken} token={qrToken} onDone={() => {}} />}
+  </div>
+)}
 
       {/* ── RECORDS MODE ── */}
       {!qrMode && (
