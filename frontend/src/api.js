@@ -34,12 +34,18 @@ export const api = {
   login:  (username, password) => req('POST', '/auth/login', { username, password }),
   me:     ()                   => req('GET',  '/auth/me'),
   logout: ()                   => req('POST', '/auth/logout'),
+  requestPasswordReset: (username) => req('POST', '/auth/password-reset/request', { username }),
+  confirmPasswordReset: (token, password) => req('POST', '/auth/password-reset/confirm', { token, password }),
 
   // Courses
   getCourses:     ()         => req('GET',    '/courses'),
   getMyCourses:   ()         => req('GET',    '/courses/my'),
   registerCourse: (courseId) => req('POST',   '/courses/register', { courseId }),
   dropCourse:     (courseId) => req('DELETE', `/courses/register/${courseId}`),
+  createCourse:   (data)     => req('POST',   '/courses', data),
+  approveCourse:  (id)       => req('PATCH',  `/courses/${id}/approve`),
+  getCourseApprovals: ()      => req('GET',    '/courses/approvals'),
+  updateRegistrationStatus: (id, status, remarks) => req('PATCH', `/courses/registrations/${id}/status`, { status, remarks }),
 
   // Attendance — core
   getMyAttendance:     ()                        => req('GET',    '/attendance/my'),
@@ -62,6 +68,7 @@ export const api = {
   getMyFee:  ()         => req('GET',   '/fee/my'),
   getAllFee:  ()         => req('GET',   '/fee/all'),
   payFee:    (id, data) => req('PATCH', `/fee/${id}/pay`, data),
+  createChallan: (data) => req('POST',  '/fee/challans', data),
 
   // Requests
   getRequestTypes:     ()                    => req('GET',   '/requests/types'),
@@ -69,12 +76,29 @@ export const api = {
   submitRequest:       (type, justification) => req('POST',  '/requests', { type, justification }),
   getAllRequests:       ()                    => req('GET',   '/requests/all'),
   updateRequestStatus: (id, status, remarks) => req('PATCH', `/requests/${id}/status`, { status, remarks }),
+  getRequestEvents:    (id)                  => req('GET',   `/requests/${id}/events`),
 
   // Notifications
   getNotifications: () => req('GET', '/notifications'),
+  markNotificationRead: (id) => req('PATCH', `/notifications/${id}/read`),
 
   // Admin
   getUsers:     () => req('GET', '/admin/users'),
   getAuditLogs: () => req('GET', '/admin/audit-logs'),
   getStats:     () => req('GET', '/admin/stats'),
+  getSettings:  () => req('GET', '/admin/settings'),
+  updateSettings: (data) => req('PATCH', '/admin/settings', data),
+  resetUserPassword: (id, password) => req('POST', `/admin/users/${id}/reset-password`, { password }),
+  updateUserFlags: (id, data) => req('PATCH', `/admin/users/${id}/flags`, data),
+  getHealth: () => req('GET', '/admin/health'),
+  initializeSemester: (semester) => req('POST', '/admin/semester/initialize', { semester }),
+
+  // Timetable
+  getMyTimetable: () => req('GET', '/timetable/my'),
+  getAllTimetable: () => req('GET', '/timetable/all'),
+
+  // Reports
+  getReportSummary: () => req('GET', '/reports/summary'),
+  getStudentReport: (params = {}) => req('GET', `/reports/students?${new URLSearchParams(params).toString()}`),
+  exportReport: (kind) => req('GET', `/reports/export/${kind}`),
 };

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../api';
 
@@ -11,6 +11,7 @@ export default function Requests() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ type: '', justification: '' });
   const [msg, setMsg] = useState(null);
+  const [events, setEvents] = useState({});
 
   const load = () => {
     const fn = user.role === 'student' ? api.getMyRequests : api.getAllRequests;
@@ -33,6 +34,14 @@ export default function Requests() {
     catch (e) { alert(e.message); }
   };
 
+  const toggleEvents = async (id) => {
+    if (events[id]) { setEvents({ ...events, [id]: null }); return; }
+    try {
+      const r = await api.getRequestEvents(id);
+      setEvents({ ...events, [id]: r.data });
+    } catch {}
+  };
+
   return (
     <div className="page">
       <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -51,7 +60,7 @@ export default function Requests() {
             <thead>
               <tr>
                 {user.role !== 'student' && <th>Student</th>}
-                <th>Type</th><th>Submitted</th><th>Status</th><th>Updated</th>
+                <th>Type</th><th>Submitted</th><th>Status</th><th>Updated</th><th>Remarks</th>
                 {user.role !== 'student' && <th>Action</th>}
               </tr>
             </thead>
@@ -59,23 +68,38 @@ export default function Requests() {
               {requests.length === 0
                 ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>No requests found</td></tr>
                 : requests.map(r => (
-                  <tr key={r.id}>
-                    {user.role !== 'student' && <td><div style={{ fontWeight: 500 }}>{r.studentName}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{r.studentUsername}</div></td>}
-                    <td style={{ fontWeight: 500 }}>{r.type}</td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.submittedAt?.slice(0, 10)}</td>
-                    <td><span className={`badge badge-${STATUS_BADGE[r.status] || 'gray'}`}>{r.status.replace('_', ' ')}</span></td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.updatedAt?.slice(0, 10)}</td>
-                    {user.role !== 'student' && (
-                      <td>
-                        {(r.status === 'submitted' || r.status === 'under_review') && (
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button className="btn btn-sm" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--green)' }} onClick={() => updateStatus(r.id, 'approved')}>Approve</button>
-                            <button className="btn btn-sm" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)' }} onClick={() => updateStatus(r.id, 'rejected')}>Reject</button>
-                          </div>
-                        )}
-                      </td>
+                  <Fragment key={r.id}>
+                    <tr key={r.id}>
+                      {user.role !== 'student' && <td><div style={{ fontWeight: 500 }}>{r.studentName}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{r.studentUsername}</div></td>}
+                      <td style={{ fontWeight: 500 }}><button className="btn btn-sm btn-secondary" onClick={() => toggleEvents(r.id)}>{r.type}</button></td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.submittedAt?.slice(0, 10)}</td>
+                      <td><span className={`badge badge-${STATUS_BADGE[r.status] || 'gray'}`}>{r.status.replace('_', ' ')}</span></td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.updatedAt?.slice(0, 10)}</td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.remarks || '-'}</td>
+                      {user.role !== 'student' && (
+                        <td>
+                          {(r.status === 'submitted' || r.status === 'under_review') && (
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button className="btn btn-sm" style={{ background: 'rgba(155,89,245,0.1)', color: 'var(--accent)' }} onClick={() => updateStatus(r.id, 'under_review')}>Review</button>
+                              <button className="btn btn-sm" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--green)' }} onClick={() => updateStatus(r.id, 'approved')}>Approve</button>
+                              <button className="btn btn-sm" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)' }} onClick={() => updateStatus(r.id, 'rejected')}>Reject</button>
+                            </div>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                    {events[r.id] && (
+                      <tr>
+                        <td colSpan={user.role === 'student' ? 5 : 7} style={{ background: 'var(--surface2)' }}>
+                          {events[r.id].map(e => (
+                            <div key={e.id} style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 0' }}>
+                              <strong style={{ color: 'var(--text)' }}>{e.status.replace('_', ' ')}</strong> by {e.actorName || 'System'} on {e.created_at?.slice(0, 19).replace('T', ' ')} {e.remarks ? `- ${e.remarks}` : ''}
+                            </div>
+                          ))}
+                        </td>
+                      </tr>
                     )}
-                  </tr>
+                  </Fragment>
                 ))}
             </tbody>
           </table>

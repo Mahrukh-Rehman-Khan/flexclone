@@ -43,18 +43,28 @@ function applySchema() {
       id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL,
       role TEXT NOT NULL, name TEXT NOT NULL, email TEXT, department TEXT,
       program TEXT, batch TEXT, semester INTEGER, cgpa REAL DEFAULT 0,
-      failed_logins INTEGER DEFAULT 0, locked INTEGER DEFAULT 0
+      failed_logins INTEGER DEFAULT 0, locked INTEGER DEFAULT 0,
+      locked_until TEXT, reset_token TEXT, reset_token_expires TEXT,
+      warning_count INTEGER DEFAULT 0, probation_status TEXT DEFAULT 'clear',
+      fee_block INTEGER DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS courses (
       id TEXT PRIMARY KEY, code TEXT NOT NULL, title TEXT NOT NULL,
       credits INTEGER DEFAULT 3, instructor TEXT, section TEXT, room TEXT,
       schedule TEXT, enrolled INTEGER DEFAULT 0, capacity INTEGER DEFAULT 40,
-      status TEXT DEFAULT 'active'
+      status TEXT DEFAULT 'active', program TEXT DEFAULT 'BSCS', batch TEXT,
+      semester_label TEXT DEFAULT 'Spring 2025', approval_status TEXT DEFAULT 'approved',
+      approved_by TEXT, approved_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS course_prerequisites (
+      course_id TEXT NOT NULL, prerequisite_code TEXT NOT NULL,
+      PRIMARY KEY(course_id, prerequisite_code)
     );
     CREATE TABLE IF NOT EXISTS registrations (
       id TEXT PRIMARY KEY, student_id TEXT NOT NULL, course_id TEXT NOT NULL,
       semester TEXT, status TEXT DEFAULT 'submitted',
-      submitted_at TEXT, approved_at TEXT,
+      submitted_at TEXT, approved_at TEXT, advisor_id TEXT, hod_id TEXT,
+      remarks TEXT DEFAULT '',
       UNIQUE(student_id, course_id)
     );
     CREATE TABLE IF NOT EXISTS attendance (
@@ -86,11 +96,52 @@ function applySchema() {
       justification TEXT, status TEXT DEFAULT 'submitted',
       submitted_at TEXT, updated_at TEXT, remarks TEXT DEFAULT ''
     );
+    CREATE TABLE IF NOT EXISTS request_events (
+      id TEXT PRIMARY KEY, request_id TEXT NOT NULL, actor_id TEXT,
+      status TEXT NOT NULL, remarks TEXT, created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL,
+      message TEXT NOT NULL, type TEXT DEFAULT 'info', read_at TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY, value TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY, user_id TEXT, action TEXT, module TEXT,
-      entity TEXT, timestamp TEXT, ip TEXT
+      entity TEXT, timestamp TEXT, ip TEXT, entity_id TEXT,
+      old_value TEXT, new_value TEXT, tamper_hash TEXT
     );
   `);
+
+  const ensureColumn = (table, column, definition) => {
+    const existing = _db.exec(`PRAGMA table_info(${table})`);
+    const names = existing[0]?.values.map(row => row[1]) || [];
+    if (!names.includes(column)) _db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  };
+
+  [
+    ['users','locked_until','TEXT'], ['users','reset_token','TEXT'], ['users','reset_token_expires','TEXT'],
+    ['users','warning_count','INTEGER DEFAULT 0'], ['users','probation_status',"TEXT DEFAULT 'clear'"], ['users','fee_block','INTEGER DEFAULT 0'],
+    ['courses','program',"TEXT DEFAULT 'BSCS'"], ['courses','batch','TEXT'], ['courses','semester_label',"TEXT DEFAULT 'Spring 2025'"],
+    ['courses','approval_status',"TEXT DEFAULT 'approved'"], ['courses','approved_by','TEXT'], ['courses','approved_at','TEXT'],
+    ['registrations','advisor_id','TEXT'], ['registrations','hod_id','TEXT'], ['registrations','remarks',"TEXT DEFAULT ''"],
+    ['audit_logs','entity_id','TEXT'], ['audit_logs','old_value','TEXT'], ['audit_logs','new_value','TEXT'], ['audit_logs','tamper_hash','TEXT'],
+  ].forEach(([table, column, definition]) => ensureColumn(table, column, definition));
+
+  const defaultSettings = {
+    registration_window_open: 'true',
+    drop_deadline: '2025-03-15',
+    max_credit_hours: '21',
+    probation_credit_hours: '15',
+    fee_block_enabled: 'true',
+    current_semester: 'Spring 2025',
+    hod_approval_required: 'true',
+  };
+  for (const [key, value] of Object.entries(defaultSettings)) {
+    _db.run('INSERT OR IGNORE INTO system_settings (key,value) VALUES (?,?)', [key, value]);
+  }
   save();
 }
 

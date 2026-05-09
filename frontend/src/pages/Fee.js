@@ -6,6 +6,8 @@ export default function Fee() {
   const { user } = useAuth();
   const [challans, setChallans] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ studentId: '', semester: 'Spring 2025', dueDate: '2025-02-28', label: 'Tuition Fee', amount: 35000, scholarshipDeduction: 0, fine: 0 });
+  const [msg, setMsg] = useState(null);
 
   const load = () => {
     const fn = user.role === 'student' ? api.getMyFee : api.getAllFee;
@@ -18,6 +20,22 @@ export default function Fee() {
     if (!ref) return;
     try { await api.payFee(id, { bankRef: ref, paymentMethod: 'Bank Transfer' }); load(); }
     catch (e) { alert(e.message); }
+  };
+
+  const createChallan = async () => {
+    try {
+      await api.createChallan({
+        studentId: form.studentId,
+        semester: form.semester,
+        dueDate: form.dueDate,
+        scholarshipDeduction: Number(form.scholarshipDeduction) || 0,
+        fine: Number(form.fine) || 0,
+        items: [{ label: form.label, amount: Number(form.amount) || 0 }],
+      });
+      setMsg({ type: 'success', text: 'Challan generated.' });
+      setForm({ ...form, studentId: '' });
+      load();
+    } catch (e) { setMsg({ type: 'error', text: e.message }); }
   };
 
   const statusBadge = (s) => {
@@ -33,6 +51,23 @@ export default function Fee() {
         <h2 className="page-title">Fee &amp; Finance</h2>
         <p className="page-subtitle">Fee challans and payment history</p>
       </div>
+
+      {msg && <div className={`alert alert-${msg.type}`} onClick={() => setMsg(null)}>{msg.text}</div>}
+
+      {(user.role === 'finance' || user.role === 'admin') && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-header"><h3 className="card-title">Generate Challan</h3><span className="badge badge-blue">Finance workflow</span></div>
+          <div className="grid-3">
+            <input className="form-input" placeholder="Student ID, e.g. s001" value={form.studentId} onChange={e => setForm({ ...form, studentId: e.target.value })} />
+            <input className="form-input" placeholder="Semester" value={form.semester} onChange={e => setForm({ ...form, semester: e.target.value })} />
+            <input className="form-input" type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
+            <input className="form-input" placeholder="Item label" value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} />
+            <input className="form-input" type="number" placeholder="Amount" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} />
+            <input className="form-input" type="number" placeholder="Scholarship deduction" value={form.scholarshipDeduction} onChange={e => setForm({ ...form, scholarshipDeduction: e.target.value })} />
+          </div>
+          <button className="btn btn-primary btn-sm" style={{ marginTop: 14 }} disabled={!form.studentId || !form.label} onClick={createChallan}>Generate Challan</button>
+        </div>
+      )}
 
       {challans.length === 0 && <div className="empty"><p>No challans found.</p></div>}
 

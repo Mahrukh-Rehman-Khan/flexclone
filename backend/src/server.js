@@ -17,7 +17,7 @@ async function start() {
   const attendanceRoutes = require('./routes/attendance');
   const marksRoutes      = require('./routes/marks');
   const coursesRoutes    = require('./routes/courses');
-  const { feeRouter, requestsRouter, notifRouter, adminRouter } = require('./routes/misc');
+  const { feeRouter, requestsRouter, notifRouter, adminRouter, timetableRouter, reportsRouter } = require('./routes/misc');
 
   app.use('/api/auth',          authRoutes);
   app.use('/api/attendance',    attendanceRoutes);
@@ -27,6 +27,8 @@ async function start() {
   app.use('/api/requests',      requestsRouter);
   app.use('/api/notifications', notifRouter);
   app.use('/api/admin',         adminRouter);
+  app.use('/api/timetable',     timetableRouter);
+  app.use('/api/reports',       reportsRouter);
 
   app.use((req, res) => res.status(404).json({ success: false, message: 'Route not found' }));
   app.use((err, req, res, next) => { console.error(err); res.status(500).json({ success: false, message: 'Internal server error' }); });
