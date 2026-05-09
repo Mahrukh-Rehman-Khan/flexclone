@@ -1,4 +1,4 @@
-const BASE = 'http://localhost:5000/api';
+const BASE = 'https://flexclone-production.up.railway.app/api';
 
 function getToken() { return localStorage.getItem('flex_token'); }
 
