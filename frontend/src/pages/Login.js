@@ -133,7 +133,7 @@ export default function Login() {
                 <input className="form-input"
                   value={form.username}
                   onChange={e => setForm({ ...form, username: e.target.value })}
-                  placeholder="e.g. 24L-3067"
+                  placeholder="e.g. 24L-3037"
                   required
                 />
               </div>
