@@ -2,6 +2,9 @@
   "name": "flex-ums",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+  "node": ">=18"
+}
   "scripts": {
     "install:all": "cd backend && npm install && cd ../frontend && npm install",
     "start:backend": "cd backend && npm start",
