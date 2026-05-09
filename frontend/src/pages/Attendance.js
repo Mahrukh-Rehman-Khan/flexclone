@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { api } from '../api';
+import { api, getLocation } from '../api';
 
 // ─── shared helpers ──────────────────────────────────────────────────────────
 
@@ -194,11 +194,14 @@ function QrImageUpload({ onToken }) {
 function QrMarkButton({ token, onDone }) {
   const [status, setStatus] = useState('idle');
   const [msg, setMsg]       = useState('');
-
+ 
   async function mark() {
     setStatus('loading');
+    setMsg('Getting your location…');
     try {
-      const res = await api.scanQrCode(token);
+      const loc = await getLocation();
+      setMsg('Marking attendance…');
+      const res = await api.scanQrCode(token, loc?.lat ?? null, loc?.lon ?? null);
       setStatus('success');
       setMsg(res.alreadyMarked ? 'You were already marked present.' : '✓ Marked present successfully!');
       onDone && onDone();
@@ -208,19 +211,25 @@ function QrMarkButton({ token, onDone }) {
       setMsg(
         m.includes('expired')          ? '✗ This QR code has expired. Ask your faculty to generate a new one.' :
         m.includes('not enrolled')     ? '✗ You are not enrolled in this course.' :
-        m.includes('Network mismatch') ? `✗ Wrong network. Connect to the university WiFi and try again. (${m.split('(')[1]?.replace(')','') || ''})` :
+        m.includes('away from')        ? `✗ ${m}` :
+        m.includes('location access')  ? '✗ Please allow location access in your browser settings and try again.' :
         `✗ ${m || 'Failed. Please try again.'}`
       );
     }
   }
-
+ 
   if (status === 'success') return <div style={{ color: 'var(--green)', fontWeight: 600, fontSize: 14, padding: '10px 0' }}>{msg}</div>;
-  if (status === 'error')   return <div style={{ color: 'var(--red)', fontSize: 13, padding: '10px 0' }}>{msg}</div>;
-
+  if (status === 'error')   return (
+    <div>
+      <div style={{ color: 'var(--red)', fontSize: 13, padding: '10px 0' }}>{msg}</div>
+      <button className="btn btn-secondary btn-sm" onClick={() => setStatus('idle')}>Try Again</button>
+    </div>
+  );
+ 
   return (
     <button className="btn btn-primary" onClick={mark} disabled={status === 'loading'}
       style={{ width: '100%', justifyContent: 'center', padding: '11px', fontSize: 14, marginTop: 4 }}>
-      {status === 'loading' ? 'Marking attendance…' : '✓ Mark me present'}
+      {status === 'loading' ? msg || 'Please wait…' : '✓ Mark me present'}
     </button>
   );
 }
@@ -456,17 +465,22 @@ function QrSessionPanel({ courseId, markDate, onSessionEnd, onMsg }) {
     } catch { stopPoll(); }
   }, []);
 
-  async function create() {
-    setCreating(true); stopPoll();
-    try {
-      const r = await api.createQrSession(courseId, markDate);
-      setSession(r.data); setLiveData(null);
-      pollRef.current = setInterval(() => poll(r.data.token), 3000);
-      poll(r.data.token);
-      onMsg('success', `QR session started for ${markDate} — expires in 10 minutes`);
-    } catch (e) { onMsg('error', e.message); }
-    finally { setCreating(false); }
-  }
+ async function create() {
+  setCreating(true); stopPoll();
+  try {
+    // Get faculty location to embed in the session
+    const loc = await getLocation();
+    const r = await api.createQrSession(courseId, markDate, loc?.lat ?? null, loc?.lon ?? null);
+    setSession(r.data); setLiveData(null);
+    pollRef.current = setInterval(() => poll(r.data.token), 3000);
+    poll(r.data.token);
+    const locMsg = loc
+      ? `QR session started — location locked (${loc.lat.toFixed(4)}, ${loc.lon.toFixed(4)})`
+      : 'QR session started — location unavailable, skipping location check';
+    onMsg('success', locMsg);
+  } catch (e) { onMsg('error', e.message); }
+  finally { setCreating(false); }
+}
 
   async function end() {
     if (!session) return;

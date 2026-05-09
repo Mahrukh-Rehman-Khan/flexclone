@@ -17,6 +17,18 @@ async function req(method, path, body) {
   return data;
 }
 
+// Get GPS location — returns { lat, lon } or null if denied
+export function getLocation(timeout = 8000) {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      ()    => resolve(null),
+      { enableHighAccuracy: true, timeout, maximumAge: 0 }
+    );
+  });
+}
+
 export const api = {
   // Auth
   login:  (username, password) => req('POST', '/auth/login', { username, password }),
@@ -36,11 +48,11 @@ export const api = {
   deleteAttendance:    (courseId, date)          => req('DELETE', `/attendance/${courseId}/${date}`),
   exportAttendance:    (courseId)                => req('GET',    `/attendance/export/${courseId}`),
 
-  // Attendance — QR
-  createQrSession: (courseId, date) => req('POST', '/attendance/qr/create', { courseId, date }),
-  getQrStatus:     (token)          => req('GET',  `/attendance/qr/status/${token}`),
-  scanQrCode:      (token)          => req('POST', '/attendance/qr/scan', { token }),
-  endQrSession:    (token)          => req('POST', '/attendance/qr/end', { token }),
+  // Attendance — QR (now includes location)
+  createQrSession: (courseId, date, lat, lon) => req('POST', '/attendance/qr/create', { courseId, date, lat, lon }),
+  getQrStatus:     (token)                    => req('GET',  `/attendance/qr/status/${token}`),
+  scanQrCode:      (token, lat, lon)          => req('POST', '/attendance/qr/scan', { token, lat, lon }),
+  endQrSession:    (token)                    => req('POST', '/attendance/qr/end', { token }),
 
   // Marks
   getMyMarks: () => req('GET',  '/marks/my'),
