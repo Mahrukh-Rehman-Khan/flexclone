@@ -19,6 +19,14 @@ const ICONS = {
   admin:      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
 };
 
+const HamburgerIcon = () => (
+  <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="21" y2="12"/>
+    <line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+);
+
 const NAV_BY_ROLE = {
   student: [
     { id: 'dashboard',  label: 'Dashboard' },
@@ -84,9 +92,13 @@ function LogoutModal({ onConfirm, onCancel }) {
 function Layout({ children, page, setPage }) {
   const { user, logout } = useAuth();
   const [showLogout, setShowLogout] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const nav = NAV_BY_ROLE[user.role] || NAV_BY_ROLE.admin;
   const currentLabel = nav.find(n => n.id === page)?.label || 'Dashboard';
   const initials = user.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+  const closeSidebar = () => setSidebarOpen(false);
+  const handleNavClick = (id) => { setPage(id); closeSidebar(); };
 
   return (
     <div className="app">
@@ -94,7 +106,13 @@ function Layout({ children, page, setPage }) {
         <LogoutModal onConfirm={logout} onCancel={() => setShowLogout(false)} />
       )}
 
-      <aside className="sidebar">
+      {/* Mobile overlay */}
+      <div
+        className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`}
+        onClick={closeSidebar}
+      />
+
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-logo">
           <h1>FLEX</h1>
           <p>University Management System</p>
@@ -104,7 +122,7 @@ function Layout({ children, page, setPage }) {
           {nav.map(item => (
             <div key={item.id}
               className={`nav-item ${page === item.id ? 'active' : ''}`}
-              onClick={() => setPage(item.id)}>
+              onClick={() => handleNavClick(item.id)}>
               {ICONS[item.id]} {item.label}
             </div>
           ))}
@@ -122,7 +140,12 @@ function Layout({ children, page, setPage }) {
 
       <main className="main">
         <header className="header">
-          <div className="breadcrumb">FLEX / <span>{currentLabel}</span></div>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <button className="hamburger" onClick={() => setSidebarOpen(o => !o)} aria-label="Toggle menu">
+              <HamburgerIcon />
+            </button>
+            <div className="breadcrumb">FLEX / <span>{currentLabel}</span></div>
+          </div>
           <div className="header-actions">
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Spring 2025</div>
           </div>
