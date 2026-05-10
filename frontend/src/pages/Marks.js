@@ -52,7 +52,7 @@ function StudentMarks({ data }) {
 
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Assessment</th><th>Total</th><th>Obtained</th><th>%</th><th>Wt%</th><th>Status</th></tr></thead>
+              <thead><tr><th>Assessment</th><th>Total</th><th>Obtained</th><th>%</th><th>Absolutes</th><th>Earned</th><th>Status</th></tr></thead>
               <tbody>
                 {course.assessments.map(a => (
                   <tr key={a.id}>
@@ -61,6 +61,7 @@ function StudentMarks({ data }) {
                     <td style={{ fontWeight: 600 }}>{a.obtained ?? '-'}</td>
                     <td>{a.percentage !== null ? <span style={{ color: a.percentage >= 80 ? 'var(--green)' : a.percentage >= 60 ? 'var(--yellow)' : 'var(--red)', fontWeight: 600 }}>{a.percentage}%</span> : '-'}</td>
                     <td style={{ color: 'var(--text-muted)' }}>{a.weightage}%</td>
+
                     <td><span className={`badge badge-${a.status === 'published' ? 'green' : 'gray'}`}>{a.status || 'pending'}</span></td>
                   </tr>
                 ))}
@@ -178,7 +179,6 @@ export default function Marks() {
     await api.saveMark(payload);
     await api.getFacultyMarks().then(r => setData(r.data));
   };
-
   if (loading) return <div className="page"><div className="empty"><p>Loading...</p></div></div>;
 
   return (

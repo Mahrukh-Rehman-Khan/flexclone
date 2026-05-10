@@ -17,6 +17,23 @@ function gradeFromPct(pct) {
   return { grade: 'F', gradePoints: 0.0 };
 }
 
+function assessmentStats(assessment, marks) {
+  const values = marks
+    .filter(m => m.obtained !== null && m.obtained !== undefined && m.obtained !== '')
+    .map(m => Number(m.obtained));
+  if (!values.length) return { average: null, min: null, max: null, count: 0 };
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return {
+    average: Number(average.toFixed(2)),
+    min: Math.min(...values),
+    max: Math.max(...values),
+    count: values.length,
+    averageAbsolute: Number(((average / assessment.total_marks) * assessment.weightage).toFixed(2)),
+    minAbsolute: Number(((Math.min(...values) / assessment.total_marks) * assessment.weightage).toFixed(2)),
+    maxAbsolute: Number(((Math.max(...values) / assessment.total_marks) * assessment.weightage).toFixed(2)),
+  };
+}
+
 router.get('/my', authenticate, authorize('student'), (req, res) => {
   const regs = db.prepare('SELECT course_id FROM registrations WHERE student_id = ?').all(req.user.id);
   const data = regs.map(r => {
@@ -26,7 +43,8 @@ router.get('/my', authenticate, authorize('student'), (req, res) => {
       const mark = db.prepare('SELECT obtained FROM marks WHERE assessment_id = ? AND student_id = ?').get(a.id, req.user.id);
       const obtained = mark?.obtained ?? null;
       const percentage = obtained !== null ? Math.round((obtained / a.total_marks) * 100) : null;
-      return { ...a, totalMarks: a.total_marks, obtained, percentage, status: a.status };
+      const absolute = obtained !== null ? Number(((obtained / a.total_marks) * a.weightage).toFixed(2)) : null;
+      return { ...a, totalMarks: a.total_marks, absoluteMarks: a.weightage, obtained, percentage, absolute, status: a.status };
     });
     const published = result.filter(a => a.obtained !== null);
     let overallPercentage = null;
@@ -36,7 +54,8 @@ router.get('/my', authenticate, authorize('student'), (req, res) => {
         ? Math.round(published.reduce((s, a) => s + (a.percentage * a.weightage), 0) / totalWeight) : null;
     }
     const { grade, gradePoints } = gradeFromPct(overallPercentage);
-    return { courseId: course.id, courseCode: course.code, courseTitle: course.title, credits: course.credits, assessments: result, overallPercentage, grade, gradePoints };
+    const totalAbsolute = published.length ? Number(published.reduce((s, a) => s + (a.absolute || 0), 0).toFixed(2)) : null;
+    return { courseId: course.id, courseCode: course.code, courseTitle: course.title, credits: course.credits, assessments: result, overallPercentage, totalAbsolute, grade, gradePoints };
   });
   res.json({ success: true, data });
 });
@@ -88,6 +107,7 @@ router.get('/faculty', authenticate, authorize('faculty', 'admin'), (req, res) =
         weightage: a.weightage,
         dueDate: a.due_date,
         status: a.status,
+
       })),
       students: students.map(s => ({
         id: s.id,
