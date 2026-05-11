@@ -1,4 +1,6 @@
-const BASE = 'https://flexclone-production.up.railway.app/api';
+const BASE = window.location.hostname === 'localhost'
+  ? 'http://localhost:5000/api'
+  : 'https://flexclone-production.up.railway.app/api';
 
 function getToken() { return localStorage.getItem('flex_token'); }
 
@@ -59,9 +61,16 @@ export const api = {
   endQrSession:    (token)                    => req('POST', '/attendance/qr/end', { token }),
 
   // Marks
-  getMyMarks: () => req('GET',  '/marks/my'),
-  getFacultyMarks: () => req('GET', '/marks/faculty'),
-  saveMark:   (d) => req('POST', '/marks', d),
+  getMyMarks:        ()                             => req('GET',    '/marks/my'),
+  getMyMarksCourses: ()                             => req('GET',    '/marks/faculty-courses'),
+  getCourseMarks:    (courseId)                     => req('GET',    `/marks/course/${courseId}`),
+  addAssessmentGroup:    (courseId, category, label, weightage) => req('POST',   '/marks/groups',              { courseId, category, label, weightage }),
+  editAssessmentGroup:   (id, label, weightage)     => req('PATCH',  `/marks/groups/${id}`,        { label, weightage }),
+  deleteAssessmentGroup: (id)                       => req('DELETE', `/marks/groups/${id}`),
+  addAssessmentComponent:    (groupId, label, totalMarks) => req('POST',   '/marks/components',          { groupId, label, totalMarks }),
+  editAssessmentComponent:   (id, label, totalMarks)     => req('PATCH',  `/marks/components/${id}`,    { label, totalMarks }),
+  deleteAssessmentComponent: (id)                        => req('DELETE', `/marks/components/${id}`),
+  saveMarks: (componentId, marks)                   => req('POST',   `/marks/components/${componentId}/marks`, { marks }),
 
   // Fee
   getMyFee:  ()         => req('GET',   '/fee/my'),

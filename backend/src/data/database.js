@@ -81,6 +81,18 @@ function applySchema() {
       id TEXT PRIMARY KEY, assessment_id TEXT NOT NULL, student_id TEXT NOT NULL,
       obtained REAL, UNIQUE(assessment_id, student_id)
     );
+    CREATE TABLE IF NOT EXISTS assessment_groups (
+      id TEXT PRIMARY KEY, course_id TEXT NOT NULL, category TEXT NOT NULL,
+      label TEXT NOT NULL, weightage REAL NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS assessment_components (
+      id TEXT PRIMARY KEY, group_id TEXT NOT NULL,
+      label TEXT NOT NULL, total_marks REAL NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS component_marks (
+      id TEXT PRIMARY KEY, component_id TEXT NOT NULL, student_id TEXT NOT NULL,
+      obtained REAL, UNIQUE(component_id, student_id)
+    );
     CREATE TABLE IF NOT EXISTS challans (
       id TEXT PRIMARY KEY, student_id TEXT NOT NULL, semester TEXT,
       status TEXT DEFAULT 'unpaid', due_date TEXT, fine REAL DEFAULT 0,

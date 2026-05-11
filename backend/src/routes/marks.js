@@ -4,7 +4,7 @@ const db      = require('../data/database');
 const { authenticate, authorize } = require('../middleware/auth');
 
 function gradeFromPct(pct) {
-  if (pct === null) return { grade: null, gradePoints: null };
+  if (pct === null || pct === undefined) return { grade: null, gradePoints: null };
   if (pct >= 90) return { grade: 'A',  gradePoints: 4.0 };
   if (pct >= 85) return { grade: 'A-', gradePoints: 3.7 };
   if (pct >= 80) return { grade: 'B+', gradePoints: 3.3 };
@@ -17,124 +17,222 @@ function gradeFromPct(pct) {
   return { grade: 'F', gradePoints: 0.0 };
 }
 
-function assessmentStats(assessment, marks) {
-  const values = marks
-    .filter(m => m.obtained !== null && m.obtained !== undefined && m.obtained !== '')
-    .map(m => Number(m.obtained));
-  if (!values.length) return { average: null, min: null, max: null, count: 0 };
-  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
-  return {
-    average: Number(average.toFixed(2)),
-    min: Math.min(...values),
-    max: Math.max(...values),
-    count: values.length,
-    averageAbsolute: Number(((average / assessment.total_marks) * assessment.weightage).toFixed(2)),
-    minAbsolute: Number(((Math.min(...values) / assessment.total_marks) * assessment.weightage).toFixed(2)),
-    maxAbsolute: Number(((Math.max(...values) / assessment.total_marks) * assessment.weightage).toFixed(2)),
-  };
-}
-
+// ── Student: GET /marks/my ────────────────────────────────────────────────────
 router.get('/my', authenticate, authorize('student'), (req, res) => {
-  const regs = db.prepare('SELECT course_id FROM registrations WHERE student_id = ?').all(req.user.id);
+  const regs = db.prepare(
+    "SELECT course_id FROM registrations WHERE student_id = ? AND status != 'rejected'"
+  ).all(req.user.id);
+
   const data = regs.map(r => {
     const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(r.course_id);
-    const assessments = db.prepare('SELECT * FROM assessments WHERE course_id = ?').all(r.course_id);
-    const result = assessments.map(a => {
-      const mark = db.prepare('SELECT obtained FROM marks WHERE assessment_id = ? AND student_id = ?').get(a.id, req.user.id);
-      const obtained = mark?.obtained ?? null;
-      const percentage = obtained !== null ? Math.round((obtained / a.total_marks) * 100) : null;
-      const absolute = obtained !== null ? Number(((obtained / a.total_marks) * a.weightage).toFixed(2)) : null;
-      return { ...a, totalMarks: a.total_marks, absoluteMarks: a.weightage, obtained, percentage, absolute, status: a.status };
+    if (!course) return null;
+
+    const groups        = db.prepare('SELECT * FROM assessment_groups WHERE course_id = ?').all(r.course_id);
+    const totalWeightage = Number(groups.reduce((s, g) => s + g.weightage, 0).toFixed(2));
+    const complete       = Math.abs(totalWeightage - 100) < 0.01;
+
+    const groupsWithData = groups.map(group => {
+      const components = db.prepare('SELECT * FROM assessment_components WHERE group_id = ?').all(group.id);
+      const compsWithMarks = components.map(comp => {
+        const mark     = db.prepare('SELECT obtained FROM component_marks WHERE component_id = ? AND student_id = ?').get(comp.id, req.user.id);
+        const obtained = mark?.obtained ?? null;
+        const pct      = obtained !== null ? Math.round((obtained / comp.total_marks) * 100) : null;
+        return { ...comp, obtained, pct };
+      });
+
+      const entered  = compsWithMarks.filter(c => c.obtained !== null);
+      let groupAbs   = null;
+      if (entered.length > 0) {
+        const sumObt   = entered.reduce((x, c) => x + c.obtained, 0);
+        const sumTotal = entered.reduce((x, c) => x + c.total_marks, 0);
+        groupAbs = Number(((sumObt / sumTotal) * group.weightage).toFixed(2));
+      }
+      return { ...group, components: compsWithMarks, groupAbs };
     });
-    const published = result.filter(a => a.obtained !== null);
-    let overallPercentage = null;
-    if (published.length) {
-      const totalWeight = published.reduce((s, a) => s + a.weightage, 0);
-      overallPercentage = totalWeight > 0
-        ? Math.round(published.reduce((s, a) => s + (a.percentage * a.weightage), 0) / totalWeight) : null;
-    }
-    const { grade, gradePoints } = gradeFromPct(overallPercentage);
-    const totalAbsolute = published.length ? Number(published.reduce((s, a) => s + (a.absolute || 0), 0).toFixed(2)) : null;
-    return { courseId: course.id, courseCode: course.code, courseTitle: course.title, credits: course.credits, assessments: result, overallPercentage, totalAbsolute, grade, gradePoints };
-  });
-  res.json({ success: true, data });
-});
 
-router.get('/faculty', authenticate, authorize('faculty', 'admin'), (req, res) => {
-  const courses = db.prepare(`
-    SELECT c.*, u.name AS instructor_name
-    FROM courses c
-    LEFT JOIN users u ON u.id = c.instructor
-    WHERE (? = 'admin' OR c.instructor = ?)
-    ORDER BY c.code
-  `).all(req.user.role, req.user.id);
-
-  const data = courses.map(course => {
-    const assessments = db.prepare(`
-      SELECT id, type, total_marks, weightage, due_date, status
-      FROM assessments
-      WHERE course_id = ?
-      ORDER BY due_date, type
-    `).all(course.id);
-
-    const students = db.prepare(`
-      SELECT u.id, u.username, u.name
-      FROM registrations r
-      JOIN users u ON u.id = r.student_id
-      WHERE r.course_id = ? AND r.status != 'rejected'
-      ORDER BY u.username
-    `).all(course.id);
-
-    const marks = db.prepare(`
-      SELECT m.assessment_id, m.student_id, m.obtained
-      FROM marks m
-      JOIN assessments a ON a.id = m.assessment_id
-      WHERE a.course_id = ?
-    `).all(course.id);
-
-    const byKey = Object.fromEntries(marks.map(m => [`${m.assessment_id}:${m.student_id}`, m.obtained]));
+    const totalAbsolutes = Number(groupsWithData.reduce((s, g) => s + (g.groupAbs || 0), 0).toFixed(2));
+    const { grade, gradePoints } = complete ? gradeFromPct(totalAbsolutes) : { grade: null, gradePoints: null };
 
     return {
-      courseId: course.id,
-      courseCode: course.code,
-      courseTitle: course.title,
-      section: course.section,
-      instructorName: course.instructor_name,
-      assessments: assessments.map(a => ({
-        id: a.id,
-        type: a.type,
-        totalMarks: a.total_marks,
-        weightage: a.weightage,
-        dueDate: a.due_date,
-        status: a.status,
-
-      })),
-      students: students.map(s => ({
-        id: s.id,
-        username: s.username,
-        name: s.name,
-        marks: Object.fromEntries(assessments.map(a => [a.id, byKey[`${a.id}:${s.id}`] ?? ''])),
-      })),
+      courseId: course.id, courseCode: course.code, courseTitle: course.title,
+      credits: course.credits, totalWeightage, complete, grade, gradePoints,
+      totalAbsolutes, groups: groupsWithData,
     };
-  });
+  }).filter(Boolean);
 
   res.json({ success: true, data });
 });
 
-router.post('/', authenticate, authorize('faculty', 'admin'), (req, res) => {
-  const { assessmentId, studentId, obtained } = req.body;
-  const assessment = db.prepare('SELECT * FROM assessments WHERE id = ?').get(assessmentId);
-  if (!assessment) return res.status(404).json({ success: false, message: 'Assessment not found' });
-  const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(assessment.course_id);
-  if (req.user.role !== 'admin' && course?.instructor !== req.user.id) {
-    return res.status(403).json({ success: false, message: 'Access Denied' });
+// ── Faculty: GET /marks/faculty-courses ──────────────────────────────────────
+router.get('/faculty-courses', authenticate, authorize('faculty', 'admin'), (req, res) => {
+  const courses = db.prepare(`
+    SELECT id, code, section FROM courses
+    WHERE (? = 'admin' OR instructor = ?) AND status = 'active'
+    ORDER BY code
+  `).all(req.user.role, req.user.id);
+  res.json({ success: true, data: courses });
+});
+
+// ── Faculty: GET /marks/course/:courseId ─────────────────────────────────────
+router.get('/course/:courseId', authenticate, authorize('faculty', 'admin'), (req, res) => {
+  const { courseId } = req.params;
+  const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(courseId);
+  if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
+  if (req.user.role !== 'admin' && course.instructor !== req.user.id)
+    return res.status(403).json({ success: false, message: 'Access denied' });
+
+  const groups         = db.prepare('SELECT * FROM assessment_groups WHERE course_id = ?').all(courseId);
+  const totalWeightage = Number(groups.reduce((s, g) => s + g.weightage, 0).toFixed(2));
+
+  const students = db.prepare(`
+    SELECT u.id, u.username, u.name
+    FROM registrations r JOIN users u ON u.id = r.student_id
+    WHERE r.course_id = ? AND r.status != 'rejected'
+    ORDER BY u.username
+  `).all(courseId);
+
+  const groupsWithComponents = groups.map(group => {
+    const components = db.prepare('SELECT * FROM assessment_components WHERE group_id = ?').all(group.id);
+    const compsWithMarks = components.map(comp => {
+      const rows = db.prepare('SELECT student_id, obtained FROM component_marks WHERE component_id = ?').all(comp.id);
+      const marks = {};
+      rows.forEach(m => { marks[m.student_id] = m.obtained; });
+      return { ...comp, marks };
+    });
+    return { ...group, components: compsWithMarks };
+  });
+
+  res.json({
+    success: true,
+    data: { courseId: course.id, courseCode: course.code, courseTitle: course.title, totalWeightage, groups: groupsWithComponents, students },
+  });
+});
+
+// ── Faculty: POST /marks/groups ───────────────────────────────────────────────
+router.post('/groups', authenticate, authorize('faculty', 'admin'), (req, res) => {
+  const { courseId, category, label, weightage } = req.body;
+  const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(courseId);
+  if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
+  if (req.user.role !== 'admin' && course.instructor !== req.user.id)
+    return res.status(403).json({ success: false, message: 'Access denied' });
+
+  const row  = db.prepare('SELECT SUM(weightage) as total FROM assessment_groups WHERE course_id = ?').get(courseId);
+  const used = row?.total || 0;
+  if (used + weightage > 100.01)
+    return res.status(400).json({ success: false, message: `Cannot exceed 100 absolutes (${used} already assigned).` });
+
+  const id = `ag${Date.now()}`;
+  db.prepare('INSERT INTO assessment_groups (id, course_id, category, label, weightage) VALUES (?,?,?,?,?)').run(id, courseId, category, label, weightage);
+  res.json({ success: true, id });
+});
+
+// ── Faculty: PATCH /marks/groups/:id ─────────────────────────────────────────
+router.patch('/groups/:id', authenticate, authorize('faculty', 'admin'), (req, res) => {
+  const { label, weightage } = req.body;
+  const group = db.prepare(`
+    SELECT ag.*, c.instructor FROM assessment_groups ag
+    JOIN courses c ON c.id = ag.course_id WHERE ag.id = ?
+  `).get(req.params.id);
+  if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+  if (req.user.role !== 'admin' && group.instructor !== req.user.id)
+    return res.status(403).json({ success: false, message: 'Access denied' });
+
+  const row        = db.prepare('SELECT SUM(weightage) as total FROM assessment_groups WHERE course_id = ? AND id != ?').get(group.course_id, req.params.id);
+  const otherTotal = row?.total || 0;
+  if (otherTotal + weightage > 100.01)
+    return res.status(400).json({ success: false, message: 'Cannot exceed 100 absolutes.' });
+
+  db.prepare('UPDATE assessment_groups SET label = ?, weightage = ? WHERE id = ?').run(label, weightage, req.params.id);
+  res.json({ success: true });
+});
+
+// ── Faculty: DELETE /marks/groups/:id ────────────────────────────────────────
+router.delete('/groups/:id', authenticate, authorize('faculty', 'admin'), (req, res) => {
+  const group = db.prepare(`
+    SELECT ag.*, c.instructor FROM assessment_groups ag
+    JOIN courses c ON c.id = ag.course_id WHERE ag.id = ?
+  `).get(req.params.id);
+  if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+  if (req.user.role !== 'admin' && group.instructor !== req.user.id)
+    return res.status(403).json({ success: false, message: 'Access denied' });
+
+  const comps = db.prepare('SELECT id FROM assessment_components WHERE group_id = ?').all(req.params.id);
+  comps.forEach(c => {
+    db.prepare('DELETE FROM component_marks WHERE component_id = ?').run(c.id);
+    db.prepare('DELETE FROM assessment_components WHERE id = ?').run(c.id);
+  });
+  db.prepare('DELETE FROM assessment_groups WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── Faculty: POST /marks/components ──────────────────────────────────────────
+router.post('/components', authenticate, authorize('faculty', 'admin'), (req, res) => {
+  const { groupId, label, totalMarks } = req.body;
+  const group = db.prepare(`
+    SELECT ag.*, c.instructor FROM assessment_groups ag
+    JOIN courses c ON c.id = ag.course_id WHERE ag.id = ?
+  `).get(groupId);
+  if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+  if (req.user.role !== 'admin' && group.instructor !== req.user.id)
+    return res.status(403).json({ success: false, message: 'Access denied' });
+
+  const id = `ac${Date.now()}`;
+  db.prepare('INSERT INTO assessment_components (id, group_id, label, total_marks) VALUES (?,?,?,?)').run(id, groupId, label, totalMarks);
+  res.json({ success: true, id });
+});
+
+// ── Faculty: PATCH /marks/components/:id ─────────────────────────────────────
+router.patch('/components/:id', authenticate, authorize('faculty', 'admin'), (req, res) => {
+  const { label, totalMarks } = req.body;
+  const comp = db.prepare(`
+    SELECT ac.*, c.instructor FROM assessment_components ac
+    JOIN assessment_groups ag ON ag.id = ac.group_id
+    JOIN courses c ON c.id = ag.course_id WHERE ac.id = ?
+  `).get(req.params.id);
+  if (!comp) return res.status(404).json({ success: false, message: 'Component not found' });
+  if (req.user.role !== 'admin' && comp.instructor !== req.user.id)
+    return res.status(403).json({ success: false, message: 'Access denied' });
+
+  db.prepare('UPDATE assessment_components SET label = ?, total_marks = ? WHERE id = ?').run(label, totalMarks, req.params.id);
+  res.json({ success: true });
+});
+
+// ── Faculty: DELETE /marks/components/:id ────────────────────────────────────
+router.delete('/components/:id', authenticate, authorize('faculty', 'admin'), (req, res) => {
+  const comp = db.prepare(`
+    SELECT ac.*, c.instructor FROM assessment_components ac
+    JOIN assessment_groups ag ON ag.id = ac.group_id
+    JOIN courses c ON c.id = ag.course_id WHERE ac.id = ?
+  `).get(req.params.id);
+  if (!comp) return res.status(404).json({ success: false, message: 'Component not found' });
+  if (req.user.role !== 'admin' && comp.instructor !== req.user.id)
+    return res.status(403).json({ success: false, message: 'Access denied' });
+
+  db.prepare('DELETE FROM component_marks WHERE component_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM assessment_components WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── Faculty: POST /marks/components/:id/marks ────────────────────────────────
+router.post('/components/:id/marks', authenticate, authorize('faculty', 'admin'), (req, res) => {
+  const { marks } = req.body;
+  const comp = db.prepare(`
+    SELECT ac.*, c.instructor FROM assessment_components ac
+    JOIN assessment_groups ag ON ag.id = ac.group_id
+    JOIN courses c ON c.id = ag.course_id WHERE ac.id = ?
+  `).get(req.params.id);
+  if (!comp) return res.status(404).json({ success: false, message: 'Component not found' });
+  if (req.user.role !== 'admin' && comp.instructor !== req.user.id)
+    return res.status(403).json({ success: false, message: 'Access denied' });
+
+  for (const [studentId, obtained] of Object.entries(marks)) {
+    const val = (obtained === '' || obtained === null || obtained === undefined) ? null : Number(obtained);
+    if (val !== null && (val < 0 || val > comp.total_marks))
+      return res.status(400).json({ success: false, message: `Mark ${val} exceeds total ${comp.total_marks} for ${comp.label}` });
+    const id = `cm${Date.now()}_${studentId}`;
+    db.prepare('INSERT OR REPLACE INTO component_marks (id, component_id, student_id, obtained) VALUES (?,?,?,?)').run(id, req.params.id, studentId, val);
   }
-  if (obtained !== '' && obtained !== null && (Number(obtained) < 0 || Number(obtained) > assessment.total_marks)) {
-    return res.status(400).json({ success: false, message: `Marks must be between 0 and ${assessment.total_marks}` });
-  }
-  const id = `mk${Date.now()}`;
-  db.prepare('INSERT OR REPLACE INTO marks (id, assessment_id, student_id, obtained) VALUES (?,?,?,?)').run(id, assessmentId, studentId, obtained === '' ? null : Number(obtained));
-  res.json({ success: true, message: 'Mark saved' });
+  res.json({ success: true });
 });
 
 module.exports = router;
