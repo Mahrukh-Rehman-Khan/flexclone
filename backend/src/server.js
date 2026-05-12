@@ -13,6 +13,10 @@ async function start() {
   await db.initDb();
   console.log('✓ Database ready');
 
+  // Auto-seed on every startup — safe because seed uses INSERT OR IGNORE
+  const seed = require('./data/seed');
+  await seed();
+
   const authRoutes       = require('./routes/auth');
   const attendanceRoutes = require('./routes/attendance');
   const marksRoutes      = require('./routes/marks');

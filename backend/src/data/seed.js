@@ -171,4 +171,10 @@ async function seed() {
   console.log('\n✅ Database seeded successfully →', require('path').resolve(__dirname,'../../flex_ums.sqlite'));
 }
 
-seed().catch(err => { console.error('Seed failed:', err); process.exit(1); });
+// Export for use in server.js auto-seed
+module.exports = seed;
+
+// Allow running directly: node src/data/seed.js
+if (require.main === module) {
+  seed().catch(err => { console.error('Seed failed:', err); process.exit(1); });
+}
