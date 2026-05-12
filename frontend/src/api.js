@@ -91,7 +91,9 @@ export const api = {
   markNotificationRead: (id) => req('PATCH', `/notifications/${id}/read`),
 
   // Admin
-  getUsers:     () => req('GET', '/admin/users'),
+  getUsers:     () => req('GET',  '/admin/users'),
+  createUser:   (data) => req('POST',   '/admin/users',    data),
+  deleteUser:   (id)   => req('DELETE', `/admin/users/${id}`),
   getAuditLogs: () => req('GET', '/admin/audit-logs'),
   getStats:     () => req('GET', '/admin/stats'),
   getSettings:  () => req('GET', '/admin/settings'),

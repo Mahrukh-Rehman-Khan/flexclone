@@ -195,6 +195,33 @@ adminRouter.patch('/settings', authenticate, authorize('admin'), (req, res) => {
   res.json({ success: true, message: 'Settings updated' });
 });
 
+adminRouter.post('/users', authenticate, authorize('admin'), (req, res) => {
+  const { name, username, password, role, email, department, program, batch, semester } = req.body;
+  if (!name || !username || !password || !role)
+    return res.status(400).json({ success: false, message: 'Name, username, password and role are required.' });
+  const validRoles = ['student', 'faculty', 'admin', 'hod', 'finance'];
+  if (!validRoles.includes(role))
+    return res.status(400).json({ success: false, message: 'Invalid role.' });
+  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+  if (existing) return res.status(409).json({ success: false, message: 'Username already taken.' });
+  const id   = `u${Date.now()}`;
+  const hash = bcrypt.hashSync(password, 12);
+  db.prepare(`INSERT INTO users (id,username,password,role,name,email,department,program,batch,semester,cgpa,failed_logins,locked,warning_count,probation_status,fee_block)
+              VALUES (?,?,?,?,?,?,?,?,?,?,0,0,0,0,'clear',0)`)
+    .run(id, username, hash, role, name, email || null, department || null, program || null, batch || null, semester ? Number(semester) : null);
+  audit(req, 'CREATE_USER', 'Admin', 'user', id, null, { name, username, role });
+  res.json({ success: true, message: 'User created', data: { id } });
+});
+
+adminRouter.delete('/users/:id', authenticate, authorize('admin'), (req, res) => {
+  const user = db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+  if (user.id === req.user.id) return res.status(400).json({ success: false, message: 'You cannot delete your own account.' });
+  db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
+  audit(req, 'DELETE_USER', 'Admin', 'user', user.id, { username: user.username, role: user.role }, null);
+  res.json({ success: true, message: 'User deleted' });
+});
+
 adminRouter.post('/users/:id/reset-password', authenticate, authorize('admin'), (req, res) => {
   const user = db.prepare('SELECT id, role, username FROM users WHERE id=?').get(req.params.id);
   if (!user) return res.status(404).json({ success: false, message: 'User not found' });

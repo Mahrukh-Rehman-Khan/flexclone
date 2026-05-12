@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 
+const BLANK_USER = { name: '', username: '', password: '', role: 'student', email: '', department: '', program: 'BSCS', batch: '', semester: '' };
+
 export default function Admin() {
   const [tab, setTab] = useState('users');
   const [users, setUsers] = useState([]);
@@ -9,6 +11,8 @@ export default function Admin() {
   const [settings, setSettings] = useState([]);
   const [health, setHealth] = useState(null);
   const [msg, setMsg] = useState(null);
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [newUser, setNewUser] = useState(BLANK_USER);
 
   const load = () => {
     api.getUsers().then(r => setUsers(r.data)).catch(() => {});
@@ -39,6 +43,20 @@ export default function Admin() {
       await api.resetUserPassword(userId, password);
       setMsg({ type: 'success', text: 'Password reset.' });
     } catch (e) { setMsg({ type: 'error', text: e.message }); }
+  };
+
+  const createUser = async () => {
+    try {
+      await api.createUser(newUser);
+      setMsg({ type: 'success', text: `User "${newUser.username}" created.` });
+      setShowAddUser(false); setNewUser(BLANK_USER); load();
+    } catch (e) { setMsg({ type: 'error', text: e.message }); }
+  };
+
+  const deleteUser = async (u) => {
+    if (!window.confirm(`Delete "${u.name}" (${u.username})? This cannot be undone.`)) return;
+    try { await api.deleteUser(u.id); setMsg({ type: 'success', text: `User "${u.username}" deleted.` }); load(); }
+    catch (e) { setMsg({ type: 'error', text: e.message }); }
   };
 
   const toggleFeeBlock = async (u) => {
@@ -74,6 +92,10 @@ export default function Admin() {
 
       {tab === 'users' && (
         <div className="card">
+          <div className="card-header">
+            <h3 className="card-title">All Users</h3>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowAddUser(true)}>+ Add User</button>
+          </div>
           <div className="table-wrap">
             <table>
               <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>CGPA</th><th>Status</th><th>Flags</th><th>Action</th></tr></thead>
@@ -97,6 +119,7 @@ export default function Admin() {
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {u.role !== 'student' && <button className="btn btn-sm btn-secondary" onClick={() => resetPassword(u.id)}>Reset Password</button>}
                         {u.role === 'student' && <button className="btn btn-sm btn-secondary" onClick={() => toggleFeeBlock(u)}>{u.fee_block ? 'Clear Block' : 'Fee Block'}</button>}
+                        <button className="btn btn-sm btn-danger" onClick={() => deleteUser(u)}>Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -160,6 +183,74 @@ export default function Admin() {
                 <div style={{ fontSize: 18, fontWeight: 700 }}>{String(value)}</div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      {showAddUser && (
+        <div className="modal-overlay" onClick={() => setShowAddUser(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <h3 className="modal-title">Add New User</h3>
+              <button className="modal-close" onClick={() => setShowAddUser(false)}>×</button>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Role</label>
+              <select className="form-select" value={newUser.role} onChange={e => setNewUser(u => ({ ...u, role: e.target.value }))}>
+                {['student', 'faculty', 'admin', 'hod', 'finance'].map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
+              </select>
+            </div>
+
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label">Full Name *</label>
+                <input className="form-input" placeholder="e.g. Ali Hassan" value={newUser.name} onChange={e => setNewUser(u => ({ ...u, name: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Username *</label>
+                <input className="form-input" placeholder="e.g. ali.hassan" value={newUser.username} onChange={e => setNewUser(u => ({ ...u, username: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label">Password *</label>
+                <input className="form-input" type="password" placeholder="Temporary password" value={newUser.password} onChange={e => setNewUser(u => ({ ...u, password: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Email</label>
+                <input className="form-input" type="email" placeholder="optional" value={newUser.email} onChange={e => setNewUser(u => ({ ...u, email: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Department</label>
+              <input className="form-input" placeholder="e.g. Computer Science" value={newUser.department} onChange={e => setNewUser(u => ({ ...u, department: e.target.value }))} />
+            </div>
+
+            {newUser.role === 'student' && (
+              <div className="grid-2">
+                <div className="form-group">
+                  <label className="form-label">Program</label>
+                  <select className="form-select" value={newUser.program} onChange={e => setNewUser(u => ({ ...u, program: e.target.value }))}>
+                    {['BSCS', 'BSSE', 'BSIT', 'BSAI', 'MSCS', 'MBA'].map(p => <option key={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Batch</label>
+                  <input className="form-input" placeholder="e.g. 2022" value={newUser.batch} onChange={e => setNewUser(u => ({ ...u, batch: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Semester</label>
+                  <input className="form-input" type="number" min="1" max="8" placeholder="1–8" value={newUser.semester} onChange={e => setNewUser(u => ({ ...u, semester: e.target.value }))} />
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+              <button className="btn btn-secondary" onClick={() => setShowAddUser(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={createUser} disabled={!newUser.name || !newUser.username || !newUser.password}>Create User</button>
+            </div>
           </div>
         </div>
       )}
