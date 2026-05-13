@@ -81,6 +81,11 @@ function applySchema() {
       id TEXT PRIMARY KEY, assessment_id TEXT NOT NULL, student_id TEXT NOT NULL,
       obtained REAL, UNIQUE(assessment_id, student_id)
     );
+    CREATE TABLE IF NOT EXISTS curriculum_rules (
+      id TEXT PRIMARY KEY, program TEXT NOT NULL, semester INTEGER NOT NULL,
+      course_id TEXT NOT NULL, mandatory INTEGER DEFAULT 0,
+      UNIQUE(program, semester, course_id)
+    );
     CREATE TABLE IF NOT EXISTS assessment_groups (
       id TEXT PRIMARY KEY, course_id TEXT NOT NULL, category TEXT NOT NULL,
       label TEXT NOT NULL, weightage REAL NOT NULL
@@ -138,7 +143,9 @@ function applySchema() {
     ['users','warning_count','INTEGER DEFAULT 0'], ['users','probation_status',"TEXT DEFAULT 'clear'"], ['users','fee_block','INTEGER DEFAULT 0'],
     ['courses','program',"TEXT DEFAULT 'BSCS'"], ['courses','batch','TEXT'], ['courses','semester_label',"TEXT DEFAULT 'Spring 2025'"],
     ['courses','approval_status',"TEXT DEFAULT 'approved'"], ['courses','approved_by','TEXT'], ['courses','approved_at','TEXT'],
+    ['courses','pass_threshold','REAL DEFAULT 50'],
     ['registrations','advisor_id','TEXT'], ['registrations','hod_id','TEXT'], ['registrations','remarks',"TEXT DEFAULT ''"],
+    ['requests','course_id','TEXT'], ['requests','assignee_id','TEXT'],
     ['audit_logs','entity_id','TEXT'], ['audit_logs','old_value','TEXT'], ['audit_logs','new_value','TEXT'], ['audit_logs','tamper_hash','TEXT'],
   ].forEach(([table, column, definition]) => ensureColumn(table, column, definition));
 

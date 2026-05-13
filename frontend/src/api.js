@@ -79,12 +79,13 @@ export const api = {
   createChallan: (data) => req('POST',  '/fee/challans', data),
 
   // Requests
-  getRequestTypes:     ()                    => req('GET',   '/requests/types'),
-  getMyRequests:       ()                    => req('GET',   '/requests/my'),
-  submitRequest:       (type, justification) => req('POST',  '/requests', { type, justification }),
-  getAllRequests:       ()                    => req('GET',   '/requests/all'),
-  updateRequestStatus: (id, status, remarks) => req('PATCH', `/requests/${id}/status`, { status, remarks }),
-  getRequestEvents:    (id)                  => req('GET',   `/requests/${id}/events`),
+  getRequestTypes:      ()                              => req('GET',   '/requests/types'),
+  getMyRequests:        ()                              => req('GET',   '/requests/my'),
+  submitRequest:        (type, justification, courseId) => req('POST',  '/requests', { type, justification, courseId }),
+  getAllRequests:        ()                              => req('GET',   '/requests/all'),
+  getAssignedRequests:  ()                              => req('GET',   '/requests/assigned'),
+  updateRequestStatus:  (id, status, remarks)           => req('PATCH', `/requests/${id}/status`, { status, remarks }),
+  getRequestEvents:     (id)                            => req('GET',   `/requests/${id}/events`),
 
   // Notifications
   getNotifications: () => req('GET', '/notifications'),
@@ -101,7 +102,13 @@ export const api = {
   resetUserPassword: (id, password) => req('POST', `/admin/users/${id}/reset-password`, { password }),
   updateUserFlags: (id, data) => req('PATCH', `/admin/users/${id}/flags`, data),
   getHealth: () => req('GET', '/admin/health'),
-  initializeSemester: (semester) => req('POST', '/admin/semester/initialize', { semester }),
+  getRolloverPreview:    ()                                    => req('GET',    '/admin/semester/rollover-preview'),
+  initializeSemester:   (semester, confirmed)                  => req('POST',   '/admin/semester/initialize', { semester, confirmed }),
+  getCurriculumRules:   ()                                     => req('GET',    '/admin/curriculum'),
+  addCurriculumRule:    (program, semester, courseId, mandatory) => req('POST',  '/admin/curriculum', { program, semester, courseId, mandatory }),
+  updateCurriculumRule: (id, mandatory)                        => req('PATCH',  `/admin/curriculum/${id}`, { mandatory }),
+  deleteCurriculumRule: (id)                                   => req('DELETE', `/admin/curriculum/${id}`),
+  setPassThreshold:     (courseId, passThreshold)              => req('PATCH',  `/admin/courses/${courseId}/pass-threshold`, { passThreshold }),
 
   // Timetable
   getMyTimetable: () => req('GET', '/timetable/my'),

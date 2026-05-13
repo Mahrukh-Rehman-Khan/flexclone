@@ -89,13 +89,25 @@ requestsRouter.get('/my', authenticate, authorize('student'), (req, res) => {
 });
 
 requestsRouter.post('/', authenticate, authorize('student'), (req, res) => {
-  const { type, justification } = req.body;
+  const { type, justification, courseId } = req.body;
   if (!REQUEST_TYPES.includes(type)) return res.status(400).json({ success: false, message: 'Invalid request type' });
+
+  let assigneeId = null;
+  if (type === 'Grade Change Request') {
+    if (!courseId) return res.status(400).json({ success: false, message: 'Please select a course for a Grade Change Request.' });
+    const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(courseId);
+    if (!course) return res.status(404).json({ success: false, message: 'Course not found.' });
+    const reg = db.prepare("SELECT id FROM registrations WHERE student_id = ? AND course_id = ? AND status != 'rejected'").get(req.user.id, courseId);
+    if (!reg) return res.status(400).json({ success: false, message: 'You are not registered in that course.' });
+    assigneeId = course.instructor || null;
+    if (assigneeId) notify(assigneeId, 'Grade Change Request', `A student has submitted a grade change request for ${course.code}.`, 'warning');
+  }
+
   const id  = `req${Date.now()}`;
   const now = new Date().toISOString();
-  db.prepare(`INSERT INTO requests (id,student_id,type,justification,status,submitted_at,updated_at,remarks)
-              VALUES (?,?,?,?,?,?,?,?)`)
-    .run(id, req.user.id, type, justification, 'submitted', now, now, '');
+  db.prepare(`INSERT INTO requests (id,student_id,type,justification,status,submitted_at,updated_at,remarks,course_id,assignee_id)
+              VALUES (?,?,?,?,?,?,?,?,?,?)`)
+    .run(id, req.user.id, type, justification, 'submitted', now, now, '', courseId || null, assigneeId);
   db.prepare(`INSERT INTO request_events (id,request_id,actor_id,status,remarks,created_at) VALUES (?,?,?,?,?,?)`)
     .run(`re${Date.now()}`, id, req.user.id, 'submitted', justification || '', now);
   notify(req.user.id, 'Request submitted', `${type} request is now submitted.`, 'success');
@@ -103,24 +115,47 @@ requestsRouter.post('/', authenticate, authorize('student'), (req, res) => {
   res.json({ success: true, message: 'Request submitted', data: { id } });
 });
 
+requestsRouter.get('/assigned', authenticate, authorize('faculty'), (req, res) => {
+  const rows = db.prepare(`
+    SELECT r.*, u.name AS student_name, u.username AS student_username,
+           c.code AS course_code, c.title AS course_title
+    FROM requests r
+    LEFT JOIN users u ON u.id = r.student_id
+    LEFT JOIN courses c ON c.id = r.course_id
+    WHERE r.assignee_id = ?
+    ORDER BY r.submitted_at DESC
+  `).all(req.user.id);
+  res.json({ success: true, data: rows.map(r => ({
+    ...r, submittedAt: r.submitted_at, updatedAt: r.updated_at,
+    studentName: r.student_name, studentUsername: r.student_username,
+    courseCode: r.course_code, courseTitle: r.course_title,
+  }))});
+});
+
 requestsRouter.get('/all', authenticate, authorize('admin', 'hod'), (req, res) => {
   const rows = db.prepare(`
-    SELECT r.*, u.name AS student_name, u.username AS student_username
-    FROM requests r LEFT JOIN users u ON u.id = r.student_id
+    SELECT r.*, u.name AS student_name, u.username AS student_username,
+           c.code AS course_code, c.title AS course_title
+    FROM requests r
+    LEFT JOIN users u ON u.id = r.student_id
+    LEFT JOIN courses c ON c.id = r.course_id
     ORDER BY r.submitted_at DESC
   `).all();
   res.json({ success: true, data: rows.map(r => ({
     ...r, submittedAt: r.submitted_at, updatedAt: r.updated_at,
     studentName: r.student_name, studentUsername: r.student_username,
+    courseCode: r.course_code, courseTitle: r.course_title,
   }))});
 });
 
-requestsRouter.patch('/:id/status', authenticate, authorize('admin', 'hod'), (req, res) => {
+requestsRouter.patch('/:id/status', authenticate, authorize('admin', 'hod', 'faculty'), (req, res) => {
   const { status, remarks } = req.body;
   const valid = ['under_review','approved','rejected'];
   if (!valid.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
   const old = db.prepare('SELECT * FROM requests WHERE id=?').get(req.params.id);
   if (!old) return res.status(404).json({ success: false, message: 'Request not found' });
+  if (req.user.role === 'faculty' && old.assignee_id !== req.user.id)
+    return res.status(403).json({ success: false, message: 'This request is not assigned to you.' });
   const info = db.prepare(`UPDATE requests SET status=?, remarks=?, updated_at=? WHERE id=?`)
     .run(status, remarks || '', new Date().toISOString(), req.params.id);
   if (info.changes === 0) return res.status(404).json({ success: false, message: 'Request not found' });
@@ -243,6 +278,54 @@ adminRouter.patch('/users/:id/flags', authenticate, authorize('admin'), (req, re
   res.json({ success: true, message: 'User flags updated' });
 });
 
+// ── Curriculum rules ─────────────────────────────────────────────────────────
+adminRouter.get('/curriculum', authenticate, authorize('admin', 'hod'), (req, res) => {
+  const rows = db.prepare(`
+    SELECT cr.*, c.code, c.title, c.pass_threshold
+    FROM curriculum_rules cr JOIN courses c ON c.id = cr.course_id
+    ORDER BY cr.program, cr.semester, c.code
+  `).all();
+  res.json({ success: true, data: rows });
+});
+
+adminRouter.post('/curriculum', authenticate, authorize('admin', 'hod'), (req, res) => {
+  const { program, semester, courseId, mandatory } = req.body;
+  if (!program || !semester || !courseId) return res.status(400).json({ success: false, message: 'program, semester and courseId are required.' });
+  const id = `cr${Date.now()}`;
+  try {
+    db.prepare('INSERT INTO curriculum_rules (id,program,semester,course_id,mandatory) VALUES (?,?,?,?,?)').run(id, program, Number(semester), courseId, mandatory ? 1 : 0);
+    audit(req, 'ADD_CURRICULUM_RULE', 'Admin', 'curriculum_rule', id, null, req.body);
+    res.json({ success: true, id });
+  } catch (e) {
+    res.status(409).json({ success: false, message: 'Rule already exists for this program/semester/course.' });
+  }
+});
+
+adminRouter.patch('/curriculum/:id', authenticate, authorize('admin', 'hod'), (req, res) => {
+  const { mandatory } = req.body;
+  const rule = db.prepare('SELECT id FROM curriculum_rules WHERE id = ?').get(req.params.id);
+  if (!rule) return res.status(404).json({ success: false, message: 'Rule not found.' });
+  db.prepare('UPDATE curriculum_rules SET mandatory = ? WHERE id = ?').run(mandatory ? 1 : 0, req.params.id);
+  res.json({ success: true });
+});
+
+adminRouter.delete('/curriculum/:id', authenticate, authorize('admin', 'hod'), (req, res) => {
+  db.prepare('DELETE FROM curriculum_rules WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── Course pass threshold ─────────────────────────────────────────────────────
+adminRouter.patch('/courses/:id/pass-threshold', authenticate, authorize('admin', 'hod'), (req, res) => {
+  const { passThreshold } = req.body;
+  const val = Number(passThreshold);
+  if (isNaN(val) || val < 0 || val > 100) return res.status(400).json({ success: false, message: 'Pass threshold must be 0–100.' });
+  const course = db.prepare('SELECT id FROM courses WHERE id = ?').get(req.params.id);
+  if (!course) return res.status(404).json({ success: false, message: 'Course not found.' });
+  db.prepare('UPDATE courses SET pass_threshold = ? WHERE id = ?').run(val, req.params.id);
+  audit(req, 'SET_PASS_THRESHOLD', 'Admin', 'course', req.params.id, null, { passThreshold: val });
+  res.json({ success: true });
+});
+
 adminRouter.get('/health', authenticate, authorize('admin'), (req, res) => {
   const mem = process.memoryUsage();
   res.json({ success: true, data: {
@@ -256,13 +339,32 @@ adminRouter.get('/health', authenticate, authorize('admin'), (req, res) => {
   }});
 });
 
+adminRouter.get('/semester/rollover-preview', authenticate, authorize('admin'), (req, res) => {
+  const studentCount  = db.prepare("SELECT COUNT(*) AS n FROM users WHERE role='student'").get().n;
+  const regCount      = db.prepare("SELECT COUNT(*) AS n FROM registrations WHERE status NOT IN ('rejected','archived')").get().n;
+  const currentSem    = db.prepare("SELECT value FROM system_settings WHERE key='current_semester'").get()?.value || 'Unknown';
+  res.json({ success: true, data: { studentCount, regCount, currentSemester: currentSem } });
+});
+
 adminRouter.post('/semester/initialize', authenticate, authorize('admin'), (req, res) => {
-  const { semester } = req.body;
-  if (!semester) return res.status(400).json({ success: false, message: 'Semester is required' });
+  const { semester, confirmed } = req.body;
+  if (!semester) return res.status(400).json({ success: false, message: 'Semester label is required.' });
+  if (!confirmed) return res.status(400).json({ success: false, message: 'Confirmation required. Send confirmed: true.' });
+
+  const prev = db.prepare("SELECT value FROM system_settings WHERE key='current_semester'").get()?.value;
+
+  // 1. Update semester label in settings and active courses
   db.prepare('INSERT OR REPLACE INTO system_settings (key,value) VALUES (?,?)').run('current_semester', semester);
   db.prepare("UPDATE courses SET semester_label=? WHERE approval_status='approved'").run(semester);
-  audit(req, 'INITIALIZE_SEMESTER', 'Admin', 'semester', semester, null, req.body);
-  res.json({ success: true, message: 'Semester initialized' });
+
+  // 2. Archive all non-rejected registrations from the previous semester
+  db.prepare("UPDATE registrations SET status='archived' WHERE status NOT IN ('rejected','archived')").run();
+
+  // 3. Advance all active students' semester by 1 (cap at 8)
+  db.prepare("UPDATE users SET semester = MIN(8, COALESCE(semester,1) + 1) WHERE role='student'").run();
+
+  audit(req, 'INITIALIZE_SEMESTER', 'Admin', 'semester', semester, { previous: prev }, { new: semester });
+  res.json({ success: true, message: `Semester advanced to "${semester}". All students incremented; registrations archived.` });
 });
 
 // Timetable is generated from locked/approved registrations and course schedules.

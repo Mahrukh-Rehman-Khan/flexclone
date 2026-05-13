@@ -6,25 +6,37 @@ const STATUS_BADGE = { submitted: 'yellow', under_review: 'blue', approved: 'gre
 
 export default function Requests() {
   const { user } = useAuth();
-  const [requests, setRequests] = useState([]);
-  const [types, setTypes] = useState([]);
+  const [requests, setRequests]   = useState([]);
+  const [types, setTypes]         = useState([]);
+  const [myCourses, setMyCourses] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ type: '', justification: '' });
-  const [msg, setMsg] = useState(null);
-  const [events, setEvents] = useState({});
+  const [form, setForm]           = useState({ type: '', justification: '', courseId: '' });
+  const [msg, setMsg]             = useState(null);
+  const [events, setEvents]       = useState({});
 
   const load = () => {
-    const fn = user.role === 'student' ? api.getMyRequests : api.getAllRequests;
+    const fn = user.role === 'student'
+      ? api.getMyRequests
+      : user.role === 'faculty'
+        ? api.getAssignedRequests
+        : api.getAllRequests;
     fn().then(r => setRequests(r.data)).catch(() => {});
     api.getRequestTypes().then(r => setTypes(r.data)).catch(() => {});
+    if (user.role === 'student') {
+      api.getMyCourses().then(r => setMyCourses(r.data)).catch(() => {});
+    }
   };
   useEffect(load, [user.role]);
 
   const submit = async () => {
     try {
-      await api.submitRequest(form.type, form.justification);
+      await api.submitRequest(
+        form.type,
+        form.justification,
+        form.type === 'Grade Change Request' ? form.courseId : undefined,
+      );
       setMsg({ type: 'success', text: 'Request submitted successfully.' });
-      setShowModal(false); setForm({ type: '', justification: '' }); load();
+      setShowModal(false); setForm({ type: '', justification: '', courseId: '' }); load();
     } catch (e) { setMsg({ type: 'error', text: e.message }); }
   };
 
@@ -36,23 +48,30 @@ export default function Requests() {
 
   const toggleEvents = async (id) => {
     if (events[id]) { setEvents({ ...events, [id]: null }); return; }
-    try {
-      const r = await api.getRequestEvents(id);
-      setEvents({ ...events, [id]: r.data });
-    } catch {}
+    try { const r = await api.getRequestEvents(id); setEvents({ ...events, [id]: r.data }); } catch {}
   };
+
+  const isFaculty  = user.role === 'faculty';
+  const isReviewer = !['student', 'faculty'].includes(user.role);
+  const colCount   = user.role === 'student' ? 5 : 8;
 
   return (
     <div className="page">
       <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
           <h2 className="page-title">Student Requests</h2>
-          <p className="page-subtitle">Submit and track formal requests</p>
+          <p className="page-subtitle">
+            {user.role === 'student' ? 'Submit and track formal requests'
+              : isFaculty ? 'Grade change requests assigned to your courses'
+              : 'Review and action all student requests'}
+          </p>
         </div>
-        {user.role === 'student' && <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ New Request</button>}
+        {user.role === 'student' && (
+          <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ New Request</button>
+        )}
       </div>
 
-      {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+      {msg && <div className={`alert alert-${msg.type}`} onClick={() => setMsg(null)}>{msg.text}</div>}
 
       <div className="card">
         <div className="table-wrap">
@@ -60,27 +79,43 @@ export default function Requests() {
             <thead>
               <tr>
                 {user.role !== 'student' && <th>Student</th>}
-                <th>Type</th><th>Submitted</th><th>Status</th><th>Updated</th><th>Remarks</th>
-                {user.role !== 'student' && <th>Action</th>}
+                <th>Type</th>
+                {(isReviewer || isFaculty) && <th>Course</th>}
+                <th>Submitted</th><th>Status</th><th>Updated</th><th>Remarks</th>
+                {(isReviewer || isFaculty) && <th>Action</th>}
               </tr>
             </thead>
             <tbody>
               {requests.length === 0
-                ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>No requests found</td></tr>
+                ? <tr><td colSpan={colCount} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>No requests found</td></tr>
                 : requests.map(r => (
                   <Fragment key={r.id}>
-                    <tr key={r.id}>
-                      {user.role !== 'student' && <td><div style={{ fontWeight: 500 }}>{r.studentName}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{r.studentUsername}</div></td>}
-                      <td style={{ fontWeight: 500 }}><button className="btn btn-sm btn-secondary" onClick={() => toggleEvents(r.id)}>{r.type}</button></td>
+                    <tr>
+                      {user.role !== 'student' && (
+                        <td>
+                          <div style={{ fontWeight: 500 }}>{r.studentName}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{r.studentUsername}</div>
+                        </td>
+                      )}
+                      <td style={{ fontWeight: 500 }}>
+                        <button className="btn btn-sm btn-secondary" onClick={() => toggleEvents(r.id)}>{r.type}</button>
+                      </td>
+                      {(isReviewer || isFaculty) && (
+                        <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          {r.courseCode ? <span>{r.courseCode}<br /><span style={{ fontSize: 11 }}>{r.courseTitle}</span></span> : '—'}
+                        </td>
+                      )}
                       <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.submittedAt?.slice(0, 10)}</td>
                       <td><span className={`badge badge-${STATUS_BADGE[r.status] || 'gray'}`}>{r.status.replace('_', ' ')}</span></td>
                       <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.updatedAt?.slice(0, 10)}</td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.remarks || '-'}</td>
-                      {user.role !== 'student' && (
+                      <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.remarks || '—'}</td>
+                      {(isReviewer || isFaculty) && (
                         <td>
                           {(r.status === 'submitted' || r.status === 'under_review') && (
                             <div style={{ display: 'flex', gap: 6 }}>
-                              <button className="btn btn-sm" style={{ background: 'rgba(155,89,245,0.1)', color: 'var(--accent)' }} onClick={() => updateStatus(r.id, 'under_review')}>Review</button>
+                              {isReviewer && (
+                                <button className="btn btn-sm" style={{ background: 'rgba(155,89,245,0.1)', color: 'var(--accent)' }} onClick={() => updateStatus(r.id, 'under_review')}>Review</button>
+                              )}
                               <button className="btn btn-sm" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--green)' }} onClick={() => updateStatus(r.id, 'approved')}>Approve</button>
                               <button className="btn btn-sm" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)' }} onClick={() => updateStatus(r.id, 'rejected')}>Reject</button>
                             </div>
@@ -90,10 +125,10 @@ export default function Requests() {
                     </tr>
                     {events[r.id] && (
                       <tr>
-                        <td colSpan={user.role === 'student' ? 5 : 7} style={{ background: 'var(--surface2)' }}>
+                        <td colSpan={colCount} style={{ background: 'var(--surface2)' }}>
                           {events[r.id].map(e => (
                             <div key={e.id} style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 0' }}>
-                              <strong style={{ color: 'var(--text)' }}>{e.status.replace('_', ' ')}</strong> by {e.actorName || 'System'} on {e.created_at?.slice(0, 19).replace('T', ' ')} {e.remarks ? `- ${e.remarks}` : ''}
+                              <strong style={{ color: 'var(--text)' }}>{e.status.replace('_', ' ')}</strong> by {e.actorName || 'System'} on {e.created_at?.slice(0, 19).replace('T', ' ')} {e.remarks ? `— ${e.remarks}` : ''}
                             </div>
                           ))}
                         </td>
@@ -115,18 +150,36 @@ export default function Requests() {
             </div>
             <div className="form-group">
               <label className="form-label">Request Type</label>
-              <select className="form-select" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
+              <select className="form-select" value={form.type} onChange={e => setForm({ ...form, type: e.target.value, courseId: '' })}>
                 <option value="">— Select type —</option>
                 {types.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
+
+            {form.type === 'Grade Change Request' && (
+              <div className="form-group">
+                <label className="form-label">Course *</label>
+                <select className="form-select" value={form.courseId} onChange={e => setForm({ ...form, courseId: e.target.value })}>
+                  <option value="">— Select course —</option>
+                  {myCourses.map(c => (
+                    <option key={c.id} value={c.id}>{c.code} — {c.title}</option>
+                  ))}
+                </select>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>This request will be sent directly to the course instructor.</div>
+              </div>
+            )}
+
             <div className="form-group">
               <label className="form-label">Justification</label>
               <textarea className="form-textarea" value={form.justification} onChange={e => setForm({ ...form, justification: e.target.value })} placeholder="Explain your request…" />
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={submit} disabled={!form.type}>Submit Request</button>
+              <button
+                className="btn btn-primary"
+                onClick={submit}
+                disabled={!form.type || (form.type === 'Grade Change Request' && !form.courseId)}
+              >Submit Request</button>
             </div>
           </div>
         </div>
