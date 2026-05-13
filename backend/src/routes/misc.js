@@ -405,13 +405,14 @@ reportsRouter.get('/summary', authenticate, (req, res) => {
     FROM challans GROUP BY status
   `).all();
   const grades = db.prepare(`
-    SELECT c.code, AVG(CASE
-      WHEN m.obtained IS NULL THEN NULL
-      ELSE (m.obtained * 100.0 / a.total_marks)
-    END) AS average
-    FROM assessments a
-    JOIN courses c ON c.id = a.course_id
-    LEFT JOIN marks m ON m.assessment_id = a.id
+    SELECT c.code, AVG(
+      CASE WHEN cm.obtained IS NULL THEN NULL
+      ELSE (cm.obtained * 100.0 / ac.total_marks) END
+    ) AS average
+    FROM assessment_components ac
+    JOIN assessment_groups ag ON ag.id = ac.group_id
+    JOIN courses c ON c.id = ag.course_id
+    LEFT JOIN component_marks cm ON cm.component_id = ac.id
     GROUP BY c.code
   `).all();
   const students = db.prepare(`

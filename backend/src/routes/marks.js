@@ -64,21 +64,21 @@ router.get('/my', authenticate, authorize('student'), (req, res) => {
 });
 
 // ── Faculty: GET /marks/faculty-courses ──────────────────────────────────────
-router.get('/faculty-courses', authenticate, authorize('faculty', 'admin'), (req, res) => {
+router.get('/faculty-courses', authenticate, authorize('faculty', 'admin', 'hod'), (req, res) => {
   const courses = db.prepare(`
     SELECT id, code, section FROM courses
-    WHERE (? = 'admin' OR instructor = ?) AND status = 'active'
+    WHERE (? IN ('admin','hod') OR instructor = ?) AND status = 'active'
     ORDER BY code
   `).all(req.user.role, req.user.id);
   res.json({ success: true, data: courses });
 });
 
 // ── Faculty: GET /marks/course/:courseId ─────────────────────────────────────
-router.get('/course/:courseId', authenticate, authorize('faculty', 'admin'), (req, res) => {
+router.get('/course/:courseId', authenticate, authorize('faculty', 'admin', 'hod'), (req, res) => {
   const { courseId } = req.params;
   const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(courseId);
   if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
-  if (req.user.role !== 'admin' && course.instructor !== req.user.id)
+  if (!['admin','hod'].includes(req.user.role) && course.instructor !== req.user.id)
     return res.status(403).json({ success: false, message: 'Access denied' });
 
   const groups         = db.prepare('SELECT * FROM assessment_groups WHERE course_id = ?').all(courseId);
@@ -109,11 +109,11 @@ router.get('/course/:courseId', authenticate, authorize('faculty', 'admin'), (re
 });
 
 // ── Faculty: POST /marks/groups ───────────────────────────────────────────────
-router.post('/groups', authenticate, authorize('faculty', 'admin'), (req, res) => {
+router.post('/groups', authenticate, authorize('faculty', 'admin', 'hod'), (req, res) => {
   const { courseId, category, label, weightage } = req.body;
   const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(courseId);
   if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
-  if (req.user.role !== 'admin' && course.instructor !== req.user.id)
+  if (!['admin','hod'].includes(req.user.role) && course.instructor !== req.user.id)
     return res.status(403).json({ success: false, message: 'Access denied' });
 
   const row  = db.prepare('SELECT SUM(weightage) as total FROM assessment_groups WHERE course_id = ?').get(courseId);
@@ -127,14 +127,14 @@ router.post('/groups', authenticate, authorize('faculty', 'admin'), (req, res) =
 });
 
 // ── Faculty: PATCH /marks/groups/:id ─────────────────────────────────────────
-router.patch('/groups/:id', authenticate, authorize('faculty', 'admin'), (req, res) => {
+router.patch('/groups/:id', authenticate, authorize('faculty', 'admin', 'hod'), (req, res) => {
   const { label, weightage } = req.body;
   const group = db.prepare(`
     SELECT ag.*, c.instructor FROM assessment_groups ag
     JOIN courses c ON c.id = ag.course_id WHERE ag.id = ?
   `).get(req.params.id);
   if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
-  if (req.user.role !== 'admin' && group.instructor !== req.user.id)
+  if (!['admin','hod'].includes(req.user.role) && group.instructor !== req.user.id)
     return res.status(403).json({ success: false, message: 'Access denied' });
 
   const row        = db.prepare('SELECT SUM(weightage) as total FROM assessment_groups WHERE course_id = ? AND id != ?').get(group.course_id, req.params.id);
@@ -147,13 +147,13 @@ router.patch('/groups/:id', authenticate, authorize('faculty', 'admin'), (req, r
 });
 
 // ── Faculty: DELETE /marks/groups/:id ────────────────────────────────────────
-router.delete('/groups/:id', authenticate, authorize('faculty', 'admin'), (req, res) => {
+router.delete('/groups/:id', authenticate, authorize('faculty', 'admin', 'hod'), (req, res) => {
   const group = db.prepare(`
     SELECT ag.*, c.instructor FROM assessment_groups ag
     JOIN courses c ON c.id = ag.course_id WHERE ag.id = ?
   `).get(req.params.id);
   if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
-  if (req.user.role !== 'admin' && group.instructor !== req.user.id)
+  if (!['admin','hod'].includes(req.user.role) && group.instructor !== req.user.id)
     return res.status(403).json({ success: false, message: 'Access denied' });
 
   const comps = db.prepare('SELECT id FROM assessment_components WHERE group_id = ?').all(req.params.id);
@@ -166,14 +166,14 @@ router.delete('/groups/:id', authenticate, authorize('faculty', 'admin'), (req, 
 });
 
 // ── Faculty: POST /marks/components ──────────────────────────────────────────
-router.post('/components', authenticate, authorize('faculty', 'admin'), (req, res) => {
+router.post('/components', authenticate, authorize('faculty', 'admin', 'hod'), (req, res) => {
   const { groupId, label, totalMarks } = req.body;
   const group = db.prepare(`
     SELECT ag.*, c.instructor FROM assessment_groups ag
     JOIN courses c ON c.id = ag.course_id WHERE ag.id = ?
   `).get(groupId);
   if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
-  if (req.user.role !== 'admin' && group.instructor !== req.user.id)
+  if (!['admin','hod'].includes(req.user.role) && group.instructor !== req.user.id)
     return res.status(403).json({ success: false, message: 'Access denied' });
 
   const id = `ac${Date.now()}`;
@@ -182,7 +182,7 @@ router.post('/components', authenticate, authorize('faculty', 'admin'), (req, re
 });
 
 // ── Faculty: PATCH /marks/components/:id ─────────────────────────────────────
-router.patch('/components/:id', authenticate, authorize('faculty', 'admin'), (req, res) => {
+router.patch('/components/:id', authenticate, authorize('faculty', 'admin', 'hod'), (req, res) => {
   const { label, totalMarks } = req.body;
   const comp = db.prepare(`
     SELECT ac.*, c.instructor FROM assessment_components ac
@@ -190,7 +190,7 @@ router.patch('/components/:id', authenticate, authorize('faculty', 'admin'), (re
     JOIN courses c ON c.id = ag.course_id WHERE ac.id = ?
   `).get(req.params.id);
   if (!comp) return res.status(404).json({ success: false, message: 'Component not found' });
-  if (req.user.role !== 'admin' && comp.instructor !== req.user.id)
+  if (!['admin','hod'].includes(req.user.role) && comp.instructor !== req.user.id)
     return res.status(403).json({ success: false, message: 'Access denied' });
 
   db.prepare('UPDATE assessment_components SET label = ?, total_marks = ? WHERE id = ?').run(label, totalMarks, req.params.id);
@@ -198,14 +198,14 @@ router.patch('/components/:id', authenticate, authorize('faculty', 'admin'), (re
 });
 
 // ── Faculty: DELETE /marks/components/:id ────────────────────────────────────
-router.delete('/components/:id', authenticate, authorize('faculty', 'admin'), (req, res) => {
+router.delete('/components/:id', authenticate, authorize('faculty', 'admin', 'hod'), (req, res) => {
   const comp = db.prepare(`
     SELECT ac.*, c.instructor FROM assessment_components ac
     JOIN assessment_groups ag ON ag.id = ac.group_id
     JOIN courses c ON c.id = ag.course_id WHERE ac.id = ?
   `).get(req.params.id);
   if (!comp) return res.status(404).json({ success: false, message: 'Component not found' });
-  if (req.user.role !== 'admin' && comp.instructor !== req.user.id)
+  if (!['admin','hod'].includes(req.user.role) && comp.instructor !== req.user.id)
     return res.status(403).json({ success: false, message: 'Access denied' });
 
   db.prepare('DELETE FROM component_marks WHERE component_id = ?').run(req.params.id);
@@ -214,7 +214,7 @@ router.delete('/components/:id', authenticate, authorize('faculty', 'admin'), (r
 });
 
 // ── Faculty: POST /marks/components/:id/marks ────────────────────────────────
-router.post('/components/:id/marks', authenticate, authorize('faculty', 'admin'), (req, res) => {
+router.post('/components/:id/marks', authenticate, authorize('faculty', 'admin', 'hod'), (req, res) => {
   const { marks } = req.body;
   const comp = db.prepare(`
     SELECT ac.*, c.instructor FROM assessment_components ac
@@ -222,7 +222,7 @@ router.post('/components/:id/marks', authenticate, authorize('faculty', 'admin')
     JOIN courses c ON c.id = ag.course_id WHERE ac.id = ?
   `).get(req.params.id);
   if (!comp) return res.status(404).json({ success: false, message: 'Component not found' });
-  if (req.user.role !== 'admin' && comp.instructor !== req.user.id)
+  if (!['admin','hod'].includes(req.user.role) && comp.instructor !== req.user.id)
     return res.status(403).json({ success: false, message: 'Access denied' });
 
   for (const [studentId, obtained] of Object.entries(marks)) {
