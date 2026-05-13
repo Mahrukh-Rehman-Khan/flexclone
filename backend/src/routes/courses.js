@@ -87,6 +87,19 @@ router.post('/register', authenticate, authorize('student'), (req, res) => {
   db.prepare('INSERT INTO registrations (id,student_id,course_id,semester,status,submitted_at) VALUES (?,?,?,?,?,?)')
     .run(id, req.user.id, courseId, getSetting('current_semester', 'Spring 2025'), 'submitted', new Date().toISOString());
   db.prepare('UPDATE courses SET enrolled = enrolled + 1 WHERE id = ?').run(courseId);
+
+  // Auto-generate fee challan for this course registration
+  const feePerCredit = Number(getSetting('fee_per_credit', '3500'));
+  const courseAmt    = (course.credits || 3) * feePerCredit;
+  const challanId    = `ch${Date.now()}`;
+  const dueDate      = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const semester     = getSetting('current_semester', 'Spring 2025');
+  db.prepare('INSERT INTO challans (id,student_id,semester,status,due_date,fine,scholarship_deduction) VALUES (?,?,?,?,?,?,?)')
+    .run(challanId, req.user.id, semester, 'unpaid', dueDate, 0, 0);
+  db.prepare('INSERT INTO challan_items (id,challan_id,label,amount) VALUES (?,?,?,?)')
+    .run(`${challanId}_item`, challanId, `Course Fee — ${course.code}: ${course.title} (${course.credits} cr)`, courseAmt);
+  notify(req.user.id, 'Fee challan generated', `PKR ${courseAmt.toLocaleString()} due for ${course.code} by ${dueDate}.`, 'info');
+
   notify(req.user.id, 'Registration submitted', `${course.code} is pending advisor approval.`, 'success');
   audit(req, 'REGISTER_COURSE', 'Courses', 'registration', id, null, { courseId });
   res.json({ success: true, message: 'Registration submitted', data: { id } });

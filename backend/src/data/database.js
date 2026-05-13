@@ -157,6 +157,7 @@ function applySchema() {
     fee_block_enabled: 'true',
     current_semester: 'Spring 2025',
     hod_approval_required: 'true',
+    fee_per_credit: '3500',
   };
   for (const [key, value] of Object.entries(defaultSettings)) {
     _db.run('INSERT OR IGNORE INTO system_settings (key,value) VALUES (?,?)', [key, value]);
