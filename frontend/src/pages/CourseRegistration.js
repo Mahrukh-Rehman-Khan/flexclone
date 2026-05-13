@@ -10,7 +10,9 @@ export default function CourseRegistration() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState(null);
-  const [offer, setOffer] = useState({ code: '', title: '', credits: 3, section: 'A', room: '', schedule: '', capacity: 40 });
+  const [offer, setOffer]         = useState({ code: '', title: '', credits: 3, section: 'A', room: '', schedule: '', capacity: 40 });
+  const [editingCourse, setEditingCourse] = useState(null);
+  const [faculty, setFaculty]     = useState([]);
 
   const load = () => {
     const calls = [api.getCourses()];
@@ -26,6 +28,12 @@ export default function CourseRegistration() {
       .finally(() => setLoading(false));
   };
   useEffect(load, [user.role]);
+
+  useEffect(() => {
+    if (['admin', 'hod'].includes(user.role)) {
+      api.getUsers().then(r => setFaculty(r.data.filter(u => u.role === 'faculty'))).catch(() => {});
+    }
+  }, [user.role]);
 
   const register = async (courseId) => {
     try { await api.registerCourse(courseId); setMsg({ type: 'success', text: 'Course added! Pending advisor approval.' }); load(); }
@@ -49,6 +57,14 @@ export default function CourseRegistration() {
   const approveOffering = async (id) => {
     try { await api.approveCourse(id); setMsg({ type: 'success', text: 'Course offering approved.' }); load(); }
     catch (e) { setMsg({ type: 'error', text: e.message }); }
+  };
+
+  const saveCourseEdit = async () => {
+    try {
+      await api.updateCourse(editingCourse.id, editingCourse);
+      setMsg({ type: 'success', text: 'Course updated.' });
+      setEditingCourse(null); load();
+    } catch (e) { setMsg({ type: 'error', text: e.message }); }
   };
 
   const updateReg = async (id, status) => {
@@ -148,14 +164,22 @@ export default function CourseRegistration() {
                       <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.room}</td>
                       <td><span style={{ color: full ? 'var(--red)' : 'var(--green)', fontWeight: 600, fontSize: 12 }}>{c.enrolled}/{c.capacity}</span></td>
                       <td>
-                        {user.role === 'hod' && c.approvalStatus === 'pending_hod'
-                          ? <button className="btn btn-primary btn-sm" onClick={() => approveOffering(c.id)}>Approve Offering</button>
-                          : user.role !== 'student'
-                            ? <span className={`badge badge-${c.approvalStatus === 'approved' ? 'green' : 'yellow'}`}>{c.approvalStatus?.replace('_', ' ')}</span>
-                            : reg
-                          ? <button className="btn btn-danger btn-sm" onClick={() => drop(c.id)} disabled={reg.registrationStatus === 'locked'}>{reg.registrationStatus === 'locked' ? 'Locked' : 'Drop'}</button>
-                          : <button className="btn btn-primary btn-sm" onClick={() => register(c.id)} disabled={full}>{full ? 'Full' : 'Add'}</button>
-                        }
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {user.role === 'hod' && c.approvalStatus === 'pending_hod' && (
+                            <button className="btn btn-primary btn-sm" onClick={() => approveOffering(c.id)}>Approve</button>
+                          )}
+                          {['admin', 'hod'].includes(user.role) && (
+                            <button className="btn btn-secondary btn-sm" onClick={() => setEditingCourse({ ...c })}>✏️ Edit</button>
+                          )}
+                          {user.role !== 'student' && !['admin','hod'].includes(user.role) && (
+                            <span className={`badge badge-${c.approvalStatus === 'approved' ? 'green' : 'yellow'}`}>{c.approvalStatus?.replace('_', ' ')}</span>
+                          )}
+                          {user.role === 'student' && (
+                            reg
+                              ? <button className="btn btn-danger btn-sm" onClick={() => drop(c.id)} disabled={reg.registrationStatus === 'locked'}>{reg.registrationStatus === 'locked' ? 'Locked' : 'Drop'}</button>
+                              : <button className="btn btn-primary btn-sm" onClick={() => register(c.id)} disabled={full}>{full ? 'Full' : 'Add'}</button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -165,6 +189,73 @@ export default function CourseRegistration() {
           </div>
         )}
       </div>
+      {editingCourse && (
+        <div className="modal-overlay" onClick={() => setEditingCourse(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
+            <div className="modal-header">
+              <h3 className="modal-title">Edit Course — {editingCourse.code}</h3>
+              <button className="modal-close" onClick={() => setEditingCourse(null)}>×</button>
+            </div>
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label">Code</label>
+                <input className="form-input" value={editingCourse.code} onChange={e => setEditingCourse(c => ({ ...c, code: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Section</label>
+                <input className="form-input" value={editingCourse.section || ''} onChange={e => setEditingCourse(c => ({ ...c, section: e.target.value }))} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Title</label>
+              <input className="form-input" value={editingCourse.title} onChange={e => setEditingCourse(c => ({ ...c, title: e.target.value }))} />
+            </div>
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label">Credits</label>
+                <input className="form-input" type="number" min="1" max="6" value={editingCourse.credits} onChange={e => setEditingCourse(c => ({ ...c, credits: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Capacity</label>
+                <input className="form-input" type="number" min="1" value={editingCourse.capacity} onChange={e => setEditingCourse(c => ({ ...c, capacity: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label">Room</label>
+                <input className="form-input" value={editingCourse.room || ''} onChange={e => setEditingCourse(c => ({ ...c, room: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Schedule</label>
+                <input className="form-input" placeholder="e.g. Mon/Wed 09:00-10:30" value={editingCourse.schedule || ''} onChange={e => setEditingCourse(c => ({ ...c, schedule: e.target.value }))} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Instructor</label>
+              <select className="form-select" value={editingCourse.instructor || ''} onChange={e => setEditingCourse(c => ({ ...c, instructor: e.target.value }))}>
+                <option value="">— Unassigned —</option>
+                {faculty.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label">Program</label>
+                <select className="form-select" value={editingCourse.program || 'BSCS'} onChange={e => setEditingCourse(c => ({ ...c, program: e.target.value }))}>
+                  {['BSCS','BSSE','BSIT','BSAI','MSCS','MBA'].map(p => <option key={p}>{p}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Batch</label>
+                <input className="form-input" placeholder="e.g. 2022" value={editingCourse.batch || ''} onChange={e => setEditingCourse(c => ({ ...c, batch: e.target.value }))} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+              <button className="btn btn-secondary" onClick={() => setEditingCourse(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveCourseEdit} disabled={!editingCourse.code || !editingCourse.title}>Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

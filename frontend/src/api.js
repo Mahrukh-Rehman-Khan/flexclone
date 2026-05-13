@@ -43,6 +43,7 @@ export const api = {
   registerCourse: (courseId) => req('POST',   '/courses/register', { courseId }),
   dropCourse:     (courseId) => req('DELETE', `/courses/register/${courseId}`),
   createCourse:   (data)     => req('POST',   '/courses', data),
+  updateCourse:   (id, data) => req('PATCH',  `/courses/${id}`, data),
   approveCourse:  (id)       => req('PATCH',  `/courses/${id}/approve`),
   getCourseApprovals: ()      => req('GET',    '/courses/approvals'),
   updateRegistrationStatus: (id, status, remarks) => req('PATCH', `/courses/registrations/${id}/status`, { status, remarks }),

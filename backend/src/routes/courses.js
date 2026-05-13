@@ -147,6 +147,30 @@ router.post('/', authenticate, authorize('admin'), (req, res) => {
   res.json({ success: true, message: 'Course offering created for HOD approval', data: { id } });
 });
 
+router.patch('/:id', authenticate, authorize('admin', 'hod'), (req, res) => {
+  const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.id);
+  if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
+  const { code, title, credits, instructor, section, room, schedule, capacity, program, batch } = req.body;
+  db.prepare(`UPDATE courses SET
+    code      = COALESCE(?, code),
+    title     = COALESCE(?, title),
+    credits   = COALESCE(?, credits),
+    instructor= COALESCE(?, instructor),
+    section   = COALESCE(?, section),
+    room      = COALESCE(?, room),
+    schedule  = COALESCE(?, schedule),
+    capacity  = COALESCE(?, capacity),
+    program   = COALESCE(?, program),
+    batch     = COALESCE(?, batch)
+    WHERE id  = ?`)
+    .run(code || null, title || null, credits ? Number(credits) : null,
+      instructor || null, section || null, room || null, schedule || null,
+      capacity ? Number(capacity) : null, program || null, batch || null,
+      req.params.id);
+  audit(req, 'EDIT_COURSE', 'Courses', 'course', req.params.id, course, req.body);
+  res.json({ success: true, message: 'Course updated' });
+});
+
 router.patch('/:id/approve', authenticate, authorize('hod', 'admin'), (req, res) => {
   const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.id);
   if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
