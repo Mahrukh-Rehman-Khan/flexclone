@@ -125,25 +125,40 @@ function StudentMarks() {
             </div>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Component</th><th>Total</th><th>Obtained</th><th>%</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Component</th><th>Total</th><th>Yours</th><th>Your %</th>
+                    <th style={{ color: 'var(--text-dim)', fontSize: 11 }}>Avg</th>
+                    <th style={{ color: 'var(--text-dim)', fontSize: 11 }}>Max</th>
+                    <th style={{ color: 'var(--text-dim)', fontSize: 11 }}>Min</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {g.components.map(c => (
-                    <tr key={c.id}>
-                      <td style={{ fontWeight: 500 }}>{c.label}</td>
-                      <td>{c.total_marks}</td>
-                      <td style={{ fontWeight: 700, color: c.obtained === null ? 'var(--text-dim)' : c.obtained === 0 ? 'var(--red)' : 'var(--text)' }}>
-                        {c.obtained === null ? '—' : c.obtained}
-                      </td>
-                      <td>
-                        {c.pct !== null ? (
-                          <div>
-                            <span style={{ fontWeight: 600, color: c.pct >= 80 ? 'var(--green)' : c.pct >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{c.pct}%</span>
-                            <Bar value={c.pct} />
-                          </div>
-                        ) : '—'}
-                      </td>
-                    </tr>
-                  ))}
+                  {g.components.map(c => {
+                    const avgPct = c.classAvg !== null ? Math.round((c.classAvg / c.total_marks) * 100) : null;
+                    return (
+                      <tr key={c.id}>
+                        <td style={{ fontWeight: 500 }}>{c.label}</td>
+                        <td>{c.total_marks}</td>
+                        <td style={{ fontWeight: 700, color: c.obtained === null ? 'var(--text-dim)' : c.obtained === 0 ? 'var(--red)' : 'var(--text)' }}>
+                          {c.obtained === null ? '—' : c.obtained}
+                        </td>
+                        <td>
+                          {c.pct !== null ? (
+                            <div>
+                              <span style={{ fontWeight: 600, color: c.pct >= 80 ? 'var(--green)' : c.pct >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{c.pct}%</span>
+                              <Bar value={c.pct} />
+                            </div>
+                          ) : '—'}
+                        </td>
+                        <td style={{ fontSize: 12, color: avgPct !== null ? (avgPct >= 80 ? 'var(--green)' : avgPct >= 60 ? 'var(--yellow)' : 'var(--red)') : 'var(--text-dim)' }}>
+                          {c.classAvg !== null ? `${c.classAvg} (${avgPct}%)` : '—'}
+                        </td>
+                        <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.classMax ?? '—'}</td>
+                        <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.classMin ?? '—'}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -419,38 +434,61 @@ function FacultyMarks() {
                       </div>
                     </div>
 
-                    <div className="table-wrap">
-                      <table>
-                        <thead><tr><th>#</th><th>Roll No.</th><th>Name</th><th>Marks (/{comp.total_marks})</th><th>%</th></tr></thead>
-                        <tbody>
-                          {courseData.students.map((s, i) => {
-                            const existing = comp.marks[s.id];
-                            const editVal  = edits[s.id];
-                            const display  = editVal !== undefined ? editVal : (existing !== null && existing !== undefined ? String(existing) : '');
-                            const raw      = editVal !== undefined ? (editVal === '' ? null : parseFloat(editVal)) : (existing ?? null);
-                            const pct      = raw !== null ? Math.round((raw / comp.total_marks) * 100) : null;
-                            return (
-                              <tr key={s.id}>
-                                <td style={{ color: 'var(--text-dim)', fontSize: 12 }}>{i + 1}</td>
-                                <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{s.username}</td>
-                                <td style={{ fontWeight: 500 }}>{s.name}</td>
-                                <td>
-                                  <input
-                                    type="number" min="0" max={comp.total_marks} step="0.5"
-                                    placeholder="—" value={display}
-                                    onChange={e => setMark(comp.id, s.id, e.target.value)}
-                                    style={{ width: 80, padding: '4px 8px', borderRadius: 6, fontSize: 13, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'monospace', outline: 'none' }}
-                                  />
-                                </td>
-                                <td style={{ fontSize: 12, fontWeight: 600, color: pct === null ? 'var(--text-dim)' : pct >= 80 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : 'var(--red)' }}>
-                                  {pct !== null ? `${pct}%` : '—'}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                    {(() => {
+                      const savedVals = Object.values(comp.marks).filter(v => v !== null && v !== undefined);
+                      const compAvg = savedVals.length ? Math.round(savedVals.reduce((a, b) => a + b, 0) / savedVals.length * 100) / 100 : null;
+                      const compMax = savedVals.length ? Math.max(...savedVals) : null;
+                      const compMin = savedVals.length ? Math.min(...savedVals) : null;
+                      const avgPct  = compAvg !== null ? Math.round((compAvg / comp.total_marks) * 100) : null;
+                      return (
+                        <div className="table-wrap">
+                          <table>
+                            <thead><tr><th>#</th><th>Roll No.</th><th>Name</th><th>Marks (/{comp.total_marks})</th><th>%</th></tr></thead>
+                            <tbody>
+                              {courseData.students.map((s, i) => {
+                                const existing = comp.marks[s.id];
+                                const editVal  = edits[s.id];
+                                const display  = editVal !== undefined ? editVal : (existing !== null && existing !== undefined ? String(existing) : '');
+                                const raw      = editVal !== undefined ? (editVal === '' ? null : parseFloat(editVal)) : (existing ?? null);
+                                const pct      = raw !== null ? Math.round((raw / comp.total_marks) * 100) : null;
+                                return (
+                                  <tr key={s.id}>
+                                    <td style={{ color: 'var(--text-dim)', fontSize: 12 }}>{i + 1}</td>
+                                    <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{s.username}</td>
+                                    <td style={{ fontWeight: 500 }}>{s.name}</td>
+                                    <td>
+                                      <input
+                                        type="number" min="0" max={comp.total_marks} step="0.5"
+                                        placeholder="—" value={display}
+                                        onChange={e => setMark(comp.id, s.id, e.target.value)}
+                                        style={{ width: 80, padding: '4px 8px', borderRadius: 6, fontSize: 13, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'monospace', outline: 'none' }}
+                                      />
+                                    </td>
+                                    <td style={{ fontSize: 12, fontWeight: 600, color: pct === null ? 'var(--text-dim)' : pct >= 80 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : 'var(--red)' }}>
+                                      {pct !== null ? `${pct}%` : '—'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            {savedVals.length > 0 && (
+                              <tfoot>
+                                <tr style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
+                                  <td colSpan={3} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', padding: '8px 12px' }}>CLASS STATS ({savedVals.length} entered)</td>
+                                  <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                    <div>Avg: <strong style={{ color: 'var(--accent)' }}>{compAvg}</strong></div>
+                                    <div style={{ fontSize: 11 }}>Max: {compMax} · Min: {compMin}</div>
+                                  </td>
+                                  <td style={{ fontSize: 12, fontWeight: 600, color: avgPct !== null ? (avgPct >= 80 ? 'var(--green)' : avgPct >= 60 ? 'var(--yellow)' : 'var(--red)') : 'var(--text-dim)' }}>
+                                    {avgPct !== null ? `${avgPct}%` : '—'}
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            )}
+                          </table>
+                        </div>
+                      );
+                    })()}
 
                     {isDirty && (
                       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>

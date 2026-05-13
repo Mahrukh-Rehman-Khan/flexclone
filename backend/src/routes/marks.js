@@ -37,7 +37,16 @@ router.get('/my', authenticate, authorize('student'), (req, res) => {
         const mark     = db.prepare('SELECT obtained FROM component_marks WHERE component_id = ? AND student_id = ?').get(comp.id, req.user.id);
         const obtained = mark?.obtained ?? null;
         const pct      = obtained !== null ? Math.round((obtained / comp.total_marks) * 100) : null;
-        return { ...comp, obtained, pct };
+        const stats    = db.prepare(`
+          SELECT AVG(obtained) AS avg, MAX(obtained) AS max, MIN(obtained) AS min
+          FROM component_marks WHERE component_id = ? AND obtained IS NOT NULL
+        `).get(comp.id);
+        return {
+          ...comp, obtained, pct,
+          classAvg: stats?.avg != null ? Math.round(stats.avg * 100) / 100 : null,
+          classMax: stats?.max ?? null,
+          classMin: stats?.min ?? null,
+        };
       });
 
       const entered  = compsWithMarks.filter(c => c.obtained !== null);
