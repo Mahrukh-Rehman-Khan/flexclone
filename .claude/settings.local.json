@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(npm install *)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(grep -o '\"b001\"[^}]*\\\\|username.*24[A-Z]-[0-9]*.*section.*B\\\\|section B.*username' \"C:\\\\Users\\\\mahru\\\\.claude\\\\projects\\\\c--Users-mahru-Downloads-flex-ums-final-final-ums\\\\82afe4c2-e849-4862-b305-b772932179fc.jsonl\" 2>/dev/null | head -20)",
+      "Read(//c/Users/mahru/.claude/projects/c--Users-mahru-Downloads-flex-ums-final-final-ums/**)",
+      "Bash(grep -o \"id:'b[0-9]*', username:'[^']*', name:'[^']*'\" \"C:\\\\Users\\\\mahru\\\\.clone\\\\projects\\\\c--Users-mahru-Downloads-flex-ums-final-final-ums\\\\82afe4c2-e849-4862-b305-b772932179fc.jsonl\" 2>/dev/null | head -40 *)",
+      "Read(//c/Users/mahru/.clone/projects/c--Users-mahru-Downloads-flex-ums-final-final-ums/**)",
+      "Bash(node src/data/seed.js)"
     ]
   }
 }

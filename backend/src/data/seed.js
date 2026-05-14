@@ -19,9 +19,9 @@ async function seed() {
   // ── Users ──────────────────────────────────────────────────────────────────
   const insertUser = (u) => db.prepare(`
     INSERT OR IGNORE INTO users
-      (id,username,password,role,name,email,department,program,batch,semester,cgpa)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)
-  `).run(u.id,u.username,u.password,u.role,u.name,u.email,u.department||null,u.program||null,u.batch||null,u.semester||null,u.cgpa||0);
+      (id,username,password,role,name,email,department,program,batch,semester,cgpa,section)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+  `).run(u.id,u.username,u.password,u.role,u.name,u.email,u.department||null,u.program||null,u.batch||null,u.semester||null,u.cgpa||0,u.section||'A');
 
   const staff = [
     { id:'u002', username:'f001',     password:FACULTY_PWD, role:'faculty',  name:'Dr. Ayesha Khan',     email:'ayesha@nu.edu.pk',  department:'CS' },
@@ -74,8 +74,50 @@ async function seed() {
     { id:'s041', username:'24L-3097', name:'Manumha Nadeem',            email:'24l3097@lhr.nu.edu.pk', batch:'2024', semester:2, cgpa:3.10 },
   ];
 
+  const studentsB = [
+    { id:'b001', username:'22L-7998', name:'Laiba Nadeem',                email:'22l7998@lhr.nu.edu.pk', batch:'2022', semester:5, cgpa:3.10 },
+    { id:'b002', username:'24L-0001', name:'Muhammad Anas',               email:'24l0001@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.20 },
+    { id:'b003', username:'24L-0707', name:'Iman Abid',                   email:'24l0707@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.30 },
+    { id:'b004', username:'24L-2549', name:'Syed Saad Ali',               email:'24l2549@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.00 },
+    { id:'b005', username:'24L-3001', name:'Romesha Afzaal',              email:'24l3001@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.40 },
+    { id:'b006', username:'24L-3002', name:'Muhammad Abdullah Rasheed',   email:'24l3002@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.10 },
+    { id:'b007', username:'24L-3004', name:'Muhammad Anas',               email:'24l3004@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:2.90 },
+    { id:'b008', username:'24L-3006', name:'Muhammad Haider Mughal',      email:'24l3006@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.20 },
+    { id:'b009', username:'24L-3007', name:'Muhammad Husnain Khan',       email:'24l3007@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.50 },
+    { id:'b010', username:'24L-3017', name:'Aqsa Ehtesham',               email:'24l3017@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.30 },
+    { id:'b011', username:'24L-3019', name:'Muhammad Huzaifa',            email:'24l3019@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.10 },
+    { id:'b012', username:'24L-3022', name:'Hasan Butt',                  email:'24l3022@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.40 },
+    { id:'b013', username:'24L-3023', name:'Muhammad Shehryar Waheed',    email:'24l3023@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.20 },
+    { id:'b014', username:'24L-3024', name:'Aliza Nadeem',                email:'24l3024@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.00 },
+    { id:'b015', username:'24L-3029', name:'Abdul Ahad Shams',            email:'24l3029@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.10 },
+    { id:'b016', username:'24L-3032', name:'Rai Muhammad Umais Kharal',   email:'24l3032@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:2.80 },
+    { id:'b017', username:'24L-3033', name:'Aliza Vahidy',                email:'24l3033@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.20 },
+    { id:'b018', username:'24L-3038', name:'Zunaira Tahir',               email:'24l3038@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.30 },
+    { id:'b019', username:'24L-3042', name:'Khadija Rao',                 email:'24l3042@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.10 },
+    { id:'b020', username:'24L-3047', name:'Muhammad Babar Shahzad',      email:'24l3047@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.40 },
+    { id:'b021', username:'24L-3055', name:'Sharjeel Shahid',             email:'24l3055@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:2.90 },
+    { id:'b022', username:'24L-3058', name:'Adnan Ali Khan',              email:'24l3058@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.10 },
+    { id:'b023', username:'24L-3059', name:'Abdul Rehman',                email:'24l3059@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.20 },
+    { id:'b024', username:'24L-3063', name:'Muhammad Muazzam Mahmood',    email:'24l3063@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.00 },
+    { id:'b025', username:'24L-3065', name:'Hania Zahra',                 email:'24l3065@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.30 },
+    { id:'b026', username:'24L-3071', name:'Muhammad Abdullah',           email:'24l3071@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.10 },
+    { id:'b027', username:'24L-3073', name:'Muhammad Hassan Ashraf',      email:'24l3073@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.20 },
+    { id:'b028', username:'24L-3075', name:'Fatima Asif',                 email:'24l3075@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.40 },
+    { id:'b029', username:'24L-3076', name:'Muhammad Ayub Butt',          email:'24l3076@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.10 },
+    { id:'b030', username:'24L-3082', name:'Minahil Basalat',             email:'24l3082@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.20 },
+    { id:'b031', username:'24L-3084', name:'Kainat Afzal',                email:'24l3084@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.10 },
+    { id:'b032', username:'24L-3086', name:'Hamza Abbas',                 email:'24l3086@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:2.90 },
+    { id:'b033', username:'24L-3087', name:'Kabeer Ahmed Shahzeb',        email:'24l3087@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.00 },
+    { id:'b034', username:'24L-3095', name:'Arqam Hafeez',                email:'24l3095@lhr.nu.edu.pk', batch:'2024', semester:3, cgpa:3.10 },
+  ];
+
   for (const u of staff) insertUser(u);
-  for (const s of students) insertUser({ ...s, password: STUDENT_PWD, role: 'student', program: 'BSCS' });
+  for (const s of students)  insertUser({ ...s, password: STUDENT_PWD, role: 'student', program: 'BSCS', section: 'A' });
+  for (const s of studentsB) insertUser({ ...s, password: STUDENT_PWD, role: 'student', program: 'BSCS', section: 'B' });
+  // Force section='A' on existing students in case they were inserted without section before
+  db.prepare("UPDATE users SET section='A' WHERE role='student' AND id IN ('s001','s002','s003','s004','s005','s006','s007','s008','s009','s010','s011','s012','s013','s014','s015','s016','s017','s018','s019','s020','s021','s022','s023','s024','s025','s026','s027','s028','s029','s030','s031','s032','s033','s034','s035','s036','s037','s038','s039','s040','s041')").run();
+  // Force section='B' on section B students in case they were inserted without section before
+  db.prepare("UPDATE users SET section='B' WHERE id LIKE 'b%' AND role='student'").run();
   console.log('✓ Users seeded');
 
   // ── Courses ────────────────────────────────────────────────────────────────
@@ -104,16 +146,27 @@ async function seed() {
   console.log('✓ Courses seeded (sections A + B)');
 
   // ── Registrations ──────────────────────────────────────────────────────────
-  const STUDENT_IDS = students.map(s => s.id);
-  const COURSE_IDS  = ['c001','c002','c003','c004','c005'];
+  const STUDENT_IDS  = students.map(s => s.id);
+  const STUDENT_B_IDS = studentsB.map(s => s.id);
+  const COURSE_IDS_A = ['c001','c002','c003','c004','c005'];
+  const COURSE_IDS_B = ['c006','c007','c008','c009','c010'];
   let ri = 0;
   for (const sid of STUDENT_IDS) {
-    for (const cid of COURSE_IDS) {
+    for (const cid of COURSE_IDS_A) {
       db.prepare(`INSERT OR IGNORE INTO registrations (id,student_id,course_id,semester,status,submitted_at,approved_at)
                   VALUES (?,?,?,?,?,?,?)`)
         .run(`r${String(ri++).padStart(4,'0')}`, sid, cid, '2024-Spring', 'locked', '2024-01-10', '2024-01-12');
     }
   }
+  for (const sid of STUDENT_B_IDS) {
+    for (const cid of COURSE_IDS_B) {
+      db.prepare(`INSERT OR IGNORE INTO registrations (id,student_id,course_id,semester,status,submitted_at,approved_at)
+                  VALUES (?,?,?,?,?,?,?)`)
+        .run(`rb${String(ri++).padStart(4,'0')}`, sid, cid, '2024-Spring', 'locked', '2024-01-10', '2024-01-12');
+    }
+  }
+  // Update section B course enrolled counts
+  db.prepare("UPDATE courses SET enrolled=34 WHERE id IN ('c006','c007','c008','c009','c010')").run();
   console.log('✓ Registrations seeded');
 
   // ── Historical Attendance ──────────────────────────────────────────────────
@@ -135,7 +188,7 @@ async function seed() {
   const maxAbs = Math.max(...STUDENT_IDS.map(sid => ABSENCES[sid]||0));
   const dates  = genDates(maxAbs + 10);
   let ai = 0;
-  for (const cid of COURSE_IDS) {
+  for (const cid of COURSE_IDS_A) {
     for (const sid of STUDENT_IDS) {
       const absCount = ABSENCES[sid]||0;
       for (let di = 0; di < dates.length; di++) {
