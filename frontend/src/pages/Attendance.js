@@ -772,15 +772,9 @@ function QrSessionPanel({ courseId, markDate, onSessionEnd, onMsg }) {
 
 // ─── FACULTY VIEW ────────────────────────────────────────────────────────────
 
-const MOCK_COURSES_FOR_FACULTY = [
-  { id: 'c001', code: 'CS-301', section: 'B', title: 'Database Systems' },
-  { id: 'c002', code: 'CS-302', section: 'B', title: 'Software Engineering' },
-  { id: 'c003', code: 'CS-303', section: 'B', title: 'Computer Networks' },
-  { id: 'c004', code: 'CS-304', section: 'B', title: 'Operating Systems' },
-  { id: 'c005', code: 'CS-305', section: 'B', title: 'Artificial Intelligence' },
-];
-
 function FacultyAttendance() {
+  const { user } = useAuth();
+  const [courses, setCourses] = useState([]);
   const [courseId, setCourseId]       = useState('');
   const [attData, setAttData]         = useState(null);
   const [markDate, setMarkDate]       = useState(new Date().toISOString().slice(0, 10));
@@ -794,6 +788,12 @@ function FacultyAttendance() {
   const [filter, setFilter]           = useState('all');
 
   const showMsg = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 5000); };
+
+  useEffect(() => {
+    api.getCourses().then(r => {
+      setCourses((r.data || []).filter(c => c.instructor === user.id));
+    }).catch(() => {});
+  }, [user.id]);
 
   const loadCourse = useCallback((id) => {
     if (!id) return;
@@ -894,7 +894,7 @@ function FacultyAttendance() {
           <label className="form-label">Course</label>
           <select className="form-select" value={courseId} onChange={e => loadCourse(e.target.value)}>
             <option value="">— Select course —</option>
-            {MOCK_COURSES_FOR_FACULTY.map(c => (
+            {courses.map(c => (
               <option key={c.id} value={c.id}>{c.code}-{c.section} · {c.title}</option>
             ))}
           </select>
