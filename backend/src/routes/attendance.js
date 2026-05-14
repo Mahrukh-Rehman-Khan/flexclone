@@ -5,11 +5,17 @@ const db      = require('../data/database');
 const { authenticate, authorize } = require('../middleware/auth');
 
 // ── In-memory QR sessions ──────────────────────────────────────────────────
-const qrSessions = new Map();
+const qrSessions   = new Map(); // token    → session data
+const qrSessionIds = new Map(); // sessionId → current token
 
 function purgeExpired() {
   const now = Date.now();
-  for (const [t, s] of qrSessions) if (s.expiresAt < now - 5000) qrSessions.delete(t);
+  for (const [t, s] of qrSessions) {
+    if (s.expiresAt < now - 5000) {
+      qrSessionIds.delete(s.sessionId);
+      qrSessions.delete(t);
+    }
+  }
 }
 
 // ── Haversine distance in metres between two GPS coords ───────────────────
@@ -204,18 +210,20 @@ router.post('/qr/create', authenticate, authorize('faculty', 'admin'), (req, res
   for (const [t, s] of qrSessions)
     if (s.courseId === courseId && s.date === date) qrSessions.delete(t);
 
+  const sessionId = crypto.randomBytes(12).toString('hex');
   const token     = crypto.randomBytes(20).toString('hex');
   const expiresAt = Date.now() + 10 * 60 * 1000;
 
   qrSessions.set(token, {
-    courseId, date, expiresAt,
+    sessionId, courseId, date, expiresAt,
     createdBy: req.user.id,
     facultyLat: lat ?? null,
     facultyLon: lon ?? null,
   });
+  qrSessionIds.set(sessionId, token);
 
   log(req.user.id, 'QR_CREATED', `${courseId}/${date}`, clientIp(req));
-  res.json({ success: true, data: { token, expiresAt, courseId, date } });
+  res.json({ success: true, data: { token, sessionId, expiresAt, courseId, date } });
 });
 
 // ── QR: poll status ───────────────────────────────────────────────────────
@@ -291,13 +299,35 @@ router.post('/qr/scan', authenticate, authorize('student'), (req, res) => {
   res.json({ success: true, message: alreadyMarked ? 'Already marked present' : 'Marked present successfully', alreadyMarked });
 });
 
+// ── QR: rotate token (keep same session, new QR code) ────────────────────
+
+router.post('/qr/rotate', authenticate, authorize('faculty', 'admin'), (req, res) => {
+  const { sessionId } = req.body;
+  if (!sessionId) return res.status(400).json({ success: false, message: 'sessionId required' });
+
+  const currentToken = qrSessionIds.get(sessionId);
+  if (!currentToken) return res.status(404).json({ success: false, message: 'Session not found or expired' });
+
+  const session = qrSessions.get(currentToken);
+  if (!session || Date.now() > session.expiresAt)
+    return res.status(410).json({ success: false, message: 'Session expired' });
+
+  const newToken = crypto.randomBytes(20).toString('hex');
+  qrSessions.set(newToken, { ...session });
+  qrSessions.delete(currentToken);
+  qrSessionIds.set(sessionId, newToken);
+
+  res.json({ success: true, data: { token: newToken } });
+});
+
 // ── QR: end session → commit to DB ───────────────────────────────────────
 
 router.post('/qr/end', authenticate, authorize('faculty', 'admin'), (req, res) => {
-  const { token } = req.body;
-  if (!token) return res.status(400).json({ success: false, message: 'token required' });
+  const { sessionId } = req.body;
+  if (!sessionId) return res.status(400).json({ success: false, message: 'sessionId required' });
 
-  const session = qrSessions.get(token);
+  const currentToken = qrSessionIds.get(sessionId);
+  const session = currentToken ? qrSessions.get(currentToken) : null;
   if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
 
   const { courseId, date } = session;
@@ -323,7 +353,8 @@ router.post('/qr/end', authenticate, authorize('faculty', 'admin'), (req, res) =
     }
   });
   commitAll();
-  qrSessions.delete(token);
+  qrSessions.delete(currentToken);
+  qrSessionIds.delete(sessionId);
   log(req.user.id, 'QR_ATTENDANCE_SAVED', `${courseId}/${date}`, clientIp(req));
 
   res.json({

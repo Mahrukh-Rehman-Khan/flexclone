@@ -58,8 +58,9 @@ export const api = {
   // Attendance — QR (now includes location)
   createQrSession: (courseId, date, lat, lon) => req('POST', '/attendance/qr/create', { courseId, date, lat, lon }),
   getQrStatus:     (token)                    => req('GET',  `/attendance/qr/status/${token}`),
+  rotateQrSession: (sessionId)               => req('POST', '/attendance/qr/rotate', { sessionId }),
   scanQrCode:      (token, lat, lon)          => req('POST', '/attendance/qr/scan', { token, lat, lon }),
-  endQrSession:    (token)                    => req('POST', '/attendance/qr/end', { token }),
+  endQrSession:    (sessionId)               => req('POST', '/attendance/qr/end', { sessionId }),
 
   // Marks
   getMyMarks:        ()                             => req('GET',    '/marks/my'),

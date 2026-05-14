@@ -629,41 +629,55 @@ function QrSessionPanel({ courseId, markDate, onSessionEnd, onMsg }) {
   const [liveData, setLiveData] = useState(null);
   const [creating, setCreating] = useState(false);
   const [ending, setEnding]     = useState(false);
-  const pollRef = useRef(null);
+  const pollRef        = useRef(null);
+  const rotateRef      = useRef(null);
+  const currentTokenRef = useRef('');
 
-  const stopPoll = () => { clearInterval(pollRef.current); pollRef.current = null; };
-  useEffect(() => () => stopPoll(), []);
+  const stopPoll   = () => { clearInterval(pollRef.current);   pollRef.current   = null; };
+  const stopRotate = () => { clearInterval(rotateRef.current); rotateRef.current = null; };
+  useEffect(() => () => { stopPoll(); stopRotate(); }, []);
 
-  const poll = useCallback(async (token) => {
+  const poll = useCallback(async () => {
+    const token = currentTokenRef.current;
+    if (!token) return;
     try {
       const r = await api.getQrStatus(token);
       setLiveData(r.data);
-      if (r.data.expired) stopPoll();
+      if (r.data.expired) { stopPoll(); stopRotate(); }
     } catch { stopPoll(); }
   }, []);
 
- async function create() {
-  setCreating(true); stopPoll();
-  try {
-    // Get faculty location to embed in the session
-    const loc = await getLocation();
-    const r = await api.createQrSession(courseId, markDate, loc?.lat ?? null, loc?.lon ?? null);
-    setSession(r.data); setLiveData(null);
-    pollRef.current = setInterval(() => poll(r.data.token), 3000);
-    poll(r.data.token);
-    const locMsg = loc
-      ? `QR session started — location locked (${loc.lat.toFixed(4)}, ${loc.lon.toFixed(4)})`
-      : 'QR session started — location unavailable, skipping location check';
-    onMsg('success', locMsg);
-  } catch (e) { onMsg('error', e.message); }
-  finally { setCreating(false); }
-}
+  async function rotate(sessionId) {
+    try {
+      const r = await api.rotateQrSession(sessionId);
+      currentTokenRef.current = r.data.token;
+      setSession(prev => ({ ...prev, token: r.data.token }));
+    } catch {}
+  }
+
+  async function create() {
+    setCreating(true); stopPoll(); stopRotate();
+    try {
+      const loc = await getLocation();
+      const r = await api.createQrSession(courseId, markDate, loc?.lat ?? null, loc?.lon ?? null);
+      currentTokenRef.current = r.data.token;
+      setSession(r.data); setLiveData(null);
+      pollRef.current   = setInterval(poll, 3000);
+      rotateRef.current = setInterval(() => rotate(r.data.sessionId), 60000);
+      poll();
+      const locMsg = loc
+        ? `QR session started — location locked (${loc.lat.toFixed(4)}, ${loc.lon.toFixed(4)})`
+        : 'QR session started — location unavailable, skipping location check';
+      onMsg('success', locMsg);
+    } catch (e) { onMsg('error', e.message); }
+    finally { setCreating(false); }
+  }
 
   async function end() {
     if (!session) return;
-    setEnding(true); stopPoll();
+    setEnding(true); stopPoll(); stopRotate();
     try {
-      const r = await api.endQrSession(session.token);
+      const r = await api.endQrSession(session.sessionId);
       onMsg('success', r.message);
       setSession(null); setLiveData(null);
       onSessionEnd?.();
