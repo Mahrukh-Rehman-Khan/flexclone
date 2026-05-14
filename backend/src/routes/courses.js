@@ -128,14 +128,24 @@ router.delete('/register/:courseId', authenticate, authorize('student'), (req, r
 });
 
 router.get('/approvals', authenticate, authorize('faculty', 'hod', 'admin'), (req, res) => {
-  const rows = db.prepare(`
-    SELECT r.*, s.name AS student_name, s.username AS student_username, c.code, c.title, c.credits, c.schedule
-    FROM registrations r
-    JOIN users s ON s.id = r.student_id
-    JOIN courses c ON c.id = r.course_id
-    WHERE r.status IN ('submitted','advisor_approved','hod_approved')
-    ORDER BY r.submitted_at DESC
-  `).all();
+  const rows = req.user.role === 'faculty'
+    ? db.prepare(`
+        SELECT r.*, s.name AS student_name, s.username AS student_username, c.code, c.title, c.credits, c.schedule
+        FROM registrations r
+        JOIN users s ON s.id = r.student_id
+        JOIN courses c ON c.id = r.course_id
+        WHERE r.status IN ('submitted','advisor_approved','hod_approved')
+          AND c.instructor = ?
+        ORDER BY r.submitted_at DESC
+      `).all(req.user.id)
+    : db.prepare(`
+        SELECT r.*, s.name AS student_name, s.username AS student_username, c.code, c.title, c.credits, c.schedule
+        FROM registrations r
+        JOIN users s ON s.id = r.student_id
+        JOIN courses c ON c.id = r.course_id
+        WHERE r.status IN ('submitted','advisor_approved','hod_approved')
+        ORDER BY r.submitted_at DESC
+      `).all();
   res.json({ success: true, data: rows.map(r => ({ ...r, studentName: r.student_name, studentUsername: r.student_username })) });
 });
 
