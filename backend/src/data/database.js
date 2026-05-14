@@ -141,6 +141,7 @@ function applySchema() {
   [
     ['users','locked_until','TEXT'], ['users','reset_token','TEXT'], ['users','reset_token_expires','TEXT'],
     ['users','warning_count','INTEGER DEFAULT 0'], ['users','probation_status',"TEXT DEFAULT 'clear'"], ['users','fee_block','INTEGER DEFAULT 0'],
+    ['users','section',"TEXT DEFAULT 'A'"],
     ['courses','program',"TEXT DEFAULT 'BSCS'"], ['courses','batch','TEXT'], ['courses','semester_label',"TEXT DEFAULT 'Spring 2025'"],
     ['courses','approval_status',"TEXT DEFAULT 'approved'"], ['courses','approved_by','TEXT'], ['courses','approved_at','TEXT'],
     ['courses','pass_threshold','REAL DEFAULT 50'],

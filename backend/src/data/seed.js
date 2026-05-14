@@ -28,6 +28,7 @@ async function seed() {
     { id:'u003', username:'admin001', password:ADMIN_PWD,   role:'admin',    name:'Rao Usman',           email:'admin@nu.edu.pk' },
     { id:'u004', username:'hod001',   password:HOD_PWD,     role:'hod',      name:'Prof. Tariq Mehmood', email:'hod@nu.edu.pk',     department:'CS' },
     { id:'u005', username:'fin001',   password:FINANCE_PWD, role:'finance',  name:'Sana Malik',          email:'finance@nu.edu.pk' },
+    { id:'u006', username:'f002',     password:FACULTY_PWD, role:'faculty',  name:'Dr. Bilal Ahmed',     email:'bilal@nu.edu.pk',   department:'CS' },
   ];
   const students = [
     { id:'s001', username:'23L-3007', name:'Muhammad Abdullah Haider',  email:'23l3007@lhr.nu.edu.pk', batch:'2023', semester:3, cgpa:3.50 },
@@ -78,18 +79,29 @@ async function seed() {
   console.log('✓ Users seeded');
 
   // ── Courses ────────────────────────────────────────────────────────────────
+  // Section A — Dr. Ayesha Khan (u002), current student cohort
   const courses = [
-    { id:'c001', code:'CS-301', title:'Database Systems',        credits:3, instructor:'u002', section:'B', room:'CS-201', schedule:'Mon/Wed 09:00-10:30', enrolled:41, capacity:45, status:'active' },
-    { id:'c002', code:'CS-302', title:'Software Engineering',    credits:3, instructor:'u002', section:'B', room:'CS-301', schedule:'Tue/Thu 11:00-12:30', enrolled:41, capacity:45, status:'active' },
-    { id:'c003', code:'CS-303', title:'Computer Networks',       credits:3, instructor:'u002', section:'B', room:'CS-105', schedule:'Mon/Wed 13:00-14:30', enrolled:41, capacity:45, status:'active' },
-    { id:'c004', code:'CS-304', title:'Operating Systems',       credits:3, instructor:'u002', section:'B', room:'CS-102', schedule:'Fri 09:00-12:00',     enrolled:41, capacity:45, status:'active' },
-    { id:'c005', code:'CS-305', title:'Artificial Intelligence', credits:3, instructor:'u002', section:'B', room:'CS-205', schedule:'Tue/Thu 14:00-15:30', enrolled:41, capacity:45, status:'active' },
+    { id:'c001', code:'CS-301', title:'Database Systems',        credits:3, instructor:'u002', section:'A', room:'CS-201', schedule:'Mon/Wed 09:00-10:30', enrolled:41, capacity:45, status:'active' },
+    { id:'c002', code:'CS-302', title:'Software Engineering',    credits:3, instructor:'u002', section:'A', room:'CS-301', schedule:'Tue/Thu 11:00-12:30', enrolled:41, capacity:45, status:'active' },
+    { id:'c003', code:'CS-303', title:'Computer Networks',       credits:3, instructor:'u002', section:'A', room:'CS-105', schedule:'Mon/Wed 13:00-14:30', enrolled:41, capacity:45, status:'active' },
+    { id:'c004', code:'CS-304', title:'Operating Systems',       credits:3, instructor:'u002', section:'A', room:'CS-102', schedule:'Fri 09:00-12:00',     enrolled:41, capacity:45, status:'active' },
+    { id:'c005', code:'CS-305', title:'Artificial Intelligence', credits:3, instructor:'u002', section:'A', room:'CS-205', schedule:'Tue/Thu 14:00-15:30', enrolled:41, capacity:45, status:'active' },
+    // Section B — Dr. Bilal Ahmed (u006), alternate timings
+    { id:'c006', code:'CS-301', title:'Database Systems',        credits:3, instructor:'u006', section:'B', room:'CS-202', schedule:'Tue/Thu 09:00-10:30', enrolled:0,  capacity:45, status:'active' },
+    { id:'c007', code:'CS-302', title:'Software Engineering',    credits:3, instructor:'u006', section:'B', room:'CS-302', schedule:'Mon/Wed 11:00-12:30', enrolled:0,  capacity:45, status:'active' },
+    { id:'c008', code:'CS-303', title:'Computer Networks',       credits:3, instructor:'u006', section:'B', room:'CS-106', schedule:'Tue/Thu 13:00-14:30', enrolled:0,  capacity:45, status:'active' },
+    { id:'c009', code:'CS-304', title:'Operating Systems',       credits:3, instructor:'u006', section:'B', room:'CS-103', schedule:'Fri 13:00-16:00',     enrolled:0,  capacity:45, status:'active' },
+    { id:'c010', code:'CS-305', title:'Artificial Intelligence', credits:3, instructor:'u006', section:'B', room:'CS-206', schedule:'Mon/Wed 14:30-16:00', enrolled:0,  capacity:45, status:'active' },
   ];
   for (const c of courses)
-    db.prepare(`INSERT OR IGNORE INTO courses (id,code,title,credits,instructor,section,room,schedule,enrolled,capacity,status)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(c.id,c.code,c.title,c.credits,c.instructor,c.section,c.room,c.schedule,c.enrolled,c.capacity,c.status);
-  console.log('✓ Courses seeded');
+    db.prepare(`INSERT OR IGNORE INTO courses (id,code,title,credits,instructor,section,room,schedule,enrolled,capacity,status,approval_status,program,semester_label)
+                VALUES (?,?,?,?,?,?,?,?,?,?,'active','approved','BSCS','Spring 2025')`)
+      .run(c.id,c.code,c.title,c.credits,c.instructor,c.section,c.room,c.schedule,c.enrolled,c.capacity);
+  // Ensure existing section A courses have section='A' (idempotent fix)
+  ['c001','c002','c003','c004','c005'].forEach(id =>
+    db.prepare("UPDATE courses SET section='A' WHERE id=? AND section!='A'").run(id)
+  );
+  console.log('✓ Courses seeded (sections A + B)');
 
   // ── Registrations ──────────────────────────────────────────────────────────
   const STUDENT_IDS = students.map(s => s.id);

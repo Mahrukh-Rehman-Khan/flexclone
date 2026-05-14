@@ -37,7 +37,7 @@ router.post('/login', (req, res) => {
   const token   = jwt.sign(payload, JWT_SECRET, { expiresIn: '60m' });
   log(user.id, 'LOGIN', req.ip);
 
-  res.json({ success: true, data: { token, user: { id: user.id, name: user.name, role: user.role, username: user.username, email: user.email, program: user.program, semester: user.semester } }, message: 'Login successful' });
+  res.json({ success: true, data: { token, user: { id: user.id, name: user.name, role: user.role, username: user.username, email: user.email, program: user.program, semester: user.semester, section: user.section } }, message: 'Login successful' });
 });
 
 router.get('/me', authenticate, (req, res) => {

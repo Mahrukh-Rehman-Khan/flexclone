@@ -36,10 +36,21 @@ function hasTimeClash(a, b) {
 }
 
 router.get('/', authenticate, (req, res) => {
-  const courses = db.prepare(`
-    SELECT c.*, u.name AS instructor_name
-    FROM courses c LEFT JOIN users u ON c.instructor = u.id
-  `).all();
+  let courses;
+  if (req.user.role === 'student') {
+    const student = db.prepare('SELECT section FROM users WHERE id = ?').get(req.user.id);
+    const section = student?.section || 'A';
+    courses = db.prepare(`
+      SELECT c.*, u.name AS instructor_name
+      FROM courses c LEFT JOIN users u ON c.instructor = u.id
+      WHERE c.section = ?
+    `).all(section);
+  } else {
+    courses = db.prepare(`
+      SELECT c.*, u.name AS instructor_name
+      FROM courses c LEFT JOIN users u ON c.instructor = u.id
+    `).all();
+  }
   res.json({ success: true, data: courses.map(c => ({ ...c, instructorName: c.instructor_name, approvalStatus: c.approval_status, semesterLabel: c.semester_label })) });
 });
 

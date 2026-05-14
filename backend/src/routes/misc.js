@@ -231,7 +231,7 @@ adminRouter.patch('/settings', authenticate, authorize('admin'), (req, res) => {
 });
 
 adminRouter.post('/users', authenticate, authorize('admin'), (req, res) => {
-  const { name, username, password, role, email, department, program, batch, semester } = req.body;
+  const { name, username, password, role, email, department, program, batch, semester, section } = req.body;
   if (!name || !username || !password || !role)
     return res.status(400).json({ success: false, message: 'Name, username, password and role are required.' });
   const validRoles = ['student', 'faculty', 'admin', 'hod', 'finance'];
@@ -241,9 +241,9 @@ adminRouter.post('/users', authenticate, authorize('admin'), (req, res) => {
   if (existing) return res.status(409).json({ success: false, message: 'Username already taken.' });
   const id   = `u${Date.now()}`;
   const hash = bcrypt.hashSync(password, 12);
-  db.prepare(`INSERT INTO users (id,username,password,role,name,email,department,program,batch,semester,cgpa,failed_logins,locked,warning_count,probation_status,fee_block)
-              VALUES (?,?,?,?,?,?,?,?,?,?,0,0,0,0,'clear',0)`)
-    .run(id, username, hash, role, name, email || null, department || null, program || null, batch || null, semester ? Number(semester) : null);
+  db.prepare(`INSERT INTO users (id,username,password,role,name,email,department,program,batch,semester,section,cgpa,failed_logins,locked,warning_count,probation_status,fee_block)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,0,0,0,0,'clear',0)`)
+    .run(id, username, hash, role, name, email || null, department || null, program || null, batch || null, semester ? Number(semester) : null, section || 'A');
   audit(req, 'CREATE_USER', 'Admin', 'user', id, null, { name, username, role });
   res.json({ success: true, message: 'User created', data: { id } });
 });

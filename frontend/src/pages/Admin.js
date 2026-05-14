@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 
-const BLANK_USER = { name: '', username: '', password: '', role: 'student', email: '', department: '', program: 'BSCS', batch: '', semester: '' };
+const BLANK_USER = { name: '', username: '', password: '', role: 'student', email: '', department: '', program: 'BSCS', batch: '', semester: '', section: 'A' };
 const PROGRAMS   = ['BSCS', 'BSSE', 'BSIT', 'BSAI', 'MSCS', 'MBA'];
 
 export default function Admin() {
@@ -380,6 +380,13 @@ export default function Admin() {
                   <label className="form-label">Program</label>
                   <select className="form-select" value={newUser.program} onChange={e => setNewUser(u => ({ ...u, program: e.target.value }))}>
                     {PROGRAMS.map(p => <option key={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Section</label>
+                  <select className="form-select" value={newUser.section} onChange={e => setNewUser(u => ({ ...u, section: e.target.value }))}>
+                    <option value="A">Section A</option>
+                    <option value="B">Section B</option>
                   </select>
                 </div>
                 <div className="form-group">
