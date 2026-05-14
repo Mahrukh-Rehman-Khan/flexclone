@@ -256,7 +256,7 @@ router.post('/qr/scan', authenticate, authorize('student'), (req, res) => {
   if (Date.now() > session.expiresAt) return res.status(410).json({ success: false, message: 'QR code has expired' });
 
   // ── Location check (15 m radius) ─────────────────────────────────────
-  const RADIUS_M = 50;
+  const RADIUS_M = 500;
   const hasSessionLoc  = session.facultyLat !== null && session.facultyLon !== null;
   const hasStudentLoc  = lat !== undefined && lat !== null && lon !== undefined && lon !== null;
 
